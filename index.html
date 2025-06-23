@@ -79,11 +79,28 @@
                         </button>
                     </div>
                 </div>
-                <!-- History Filter -->
-                 <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-col md:flex-row items-center gap-4">
-                    <label for="filter-date" class="font-semibold text-gray-600"><i class="fas fa-calendar-alt mr-2"></i>Filtrar por data:</label>
-                    <input type="date" id="filter-date" class="p-2 border border-gray-300 rounded-md">
-                    <button id="clear-filter-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Limpar Filtro</button>
+                <!-- Filters -->
+                 <div class="bg-white p-4 rounded-lg shadow-md mb-6 space-y-4">
+                    <p class="font-semibold text-gray-700">Filtros de Busca</p>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div class="md:col-span-1">
+                            <label for="filter-date" class="block text-sm font-medium text-gray-600">Data da Retirada</label>
+                            <input type="date" id="filter-date" class="mt-1 p-2 w-full border border-gray-300 rounded-md">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label for="filter-professor" class="block text-sm font-medium text-gray-600">Nome do Professor</label>
+                            <input type="text" id="filter-professor" placeholder="Buscar por professor..." class="mt-1 p-2 w-full border border-gray-300 rounded-md">
+                        </div>
+                         <div class="md:col-span-1">
+                            <label for="filter-item" class="block text-sm font-medium text-gray-600">Nome do Item</label>
+                            <input type="text" id="filter-item" placeholder="Buscar por item..." class="mt-1 p-2 w-full border border-gray-300 rounded-md">
+                        </div>
+                        <div class="md:col-span-1">
+                            <button id="clear-filter-btn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">
+                                <i class="fas fa-eraser mr-2"></i>Limpar Filtros
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-lg">
                     <div class="overflow-x-auto">
@@ -359,9 +376,17 @@
         function renderRetiradas() {
             let filteredRetiradas = [...allRetiradas];
             const filterDate = document.getElementById('filter-date').value;
+            const filterProfessor = document.getElementById('filter-professor').value.toLowerCase().trim();
+            const filterItem = document.getElementById('filter-item').value.toLowerCase().trim();
 
             if (filterDate) {
                 filteredRetiradas = filteredRetiradas.filter(r => r.dataRetirada === filterDate);
+            }
+            if (filterProfessor) {
+                filteredRetiradas = filteredRetiradas.filter(r => r.professorName.toLowerCase().includes(filterProfessor));
+            }
+            if (filterItem) {
+                filteredRetiradas = filteredRetiradas.filter(r => r.itens.some(item => item.itemName.toLowerCase().includes(filterItem)));
             }
 
             retiradasTableBody.innerHTML = '';
@@ -462,12 +487,24 @@
                         isAuthReady = true;
                         attachListeners();
                     } else {
-                        await signInAnonymously(auth);
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (e) {
+                            console.error("Anonymous sign-in failed:", e);
+                            if (e.code === 'auth/operation-not-allowed' || e.code === 'auth/admin-restricted-operation') {
+                                document.body.innerHTML = `<div class="p-8 m-4 text-center text-red-800 bg-red-100 rounded-lg">
+                                    <h2 class="font-bold text-xl mb-2">Ação Requerida: Habilitar Login Anônimo</h2>
+                                    <p>Ocorreu um erro de autenticação. Para que o aplicativo funcione, você precisa habilitar o método de login "Anônimo" no seu painel do Firebase.</p>
+                                    <p class="mt-3">Vá para <strong>Firebase Console > Authentication > Sign-in method > Adicionar novo provedor > Anônimo</strong> e habilite-o.</p>
+                                    <p class="mt-4 text-xs text-gray-600">Código do erro: ${e.code}</p>
+                                </div>`;
+                            }
+                        }
                     }
                 });
             } catch (error) { 
                 console.error("Firebase init failed:", error);
-                document.body.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 rounded-lg">
+                document.body.innerHTML = `<div class="p-8 m-4 text-center text-red-800 bg-red-100 rounded-lg">
                     <h2 class="font-bold text-xl mb-2">Falha na Conexão com o Banco de Dados</h2>
                     <p>Não foi possível iniciar o sistema. Verifique a configuração do Firebase no código e sua conexão com a internet.</p>
                     <p class="mt-4 text-xs text-gray-500">Erro: ${error.message}</p>
@@ -475,31 +512,30 @@
             }
         }
 
+        const getCollectionRef = (name) => collection(db, 'almoxarifado', appId, name);
+        const getDocRef = (coll, id) => doc(db, 'almoxarifado', appId, coll, id);
+
         function attachListeners() {
             if (!isAuthReady) return;
-            const commonPath = `almoxarifado-data`; // Simplified global path
             
             if (unsubscribeProfessores) unsubscribeProfessores();
-            unsubscribeProfessores = onSnapshot(collection(db, `${commonPath}/professores`), (snap) => {
+            unsubscribeProfessores = onSnapshot(getCollectionRef('professores'), (snap) => {
                 localProfessores = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderProfessores(localProfessores);
             }, (error) => console.error("Error listening to professors: ", error));
             
             if (unsubscribeItens) unsubscribeItens();
-            unsubscribeItens = onSnapshot(collection(db, `${commonPath}/itens`), (snap) => {
+            unsubscribeItens = onSnapshot(getCollectionRef('itens'), (snap) => {
                 localItens = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderItens(localItens);
             }, (error) => console.error("Error listening to items: ", error));
             
             if (unsubscribeRetiradas) unsubscribeRetiradas();
-            unsubscribeRetiradas = onSnapshot(collection(db, `${commonPath}/retiradas`), (snap) => {
+            unsubscribeRetiradas = onSnapshot(getCollectionRef('retiradas'), (snap) => {
                 allRetiradas = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderRetiradas();
             }, (error) => console.error("Error listening to retiradas: ", error));
         }
-        
-        const getCollectionRef = (name) => collection(db, `almoxarifado-data/${name}`);
-        const getDocRef = (coll, id) => doc(db, `almoxarifado-data/${coll}`, id);
         
         // --- CRUD Functions with Error Handling ---
 
@@ -664,11 +700,26 @@
                 });
             });
 
+            // Form Submissions
             document.getElementById('add-professor-form').addEventListener('submit', (e) => { e.preventDefault(); const i = document.getElementById('professor-name'); if(i.value.trim()){ addProfessor(i.value.trim()); i.value=''; } });
             document.getElementById('add-item-form').addEventListener('submit', (e) => { e.preventDefault(); const n = document.getElementById('item-name'), q = document.getElementById('item-quantity'); if(n.value.trim()&&q.value){ addItem(n.value.trim(), q.value); n.value=q.value=''; } });
+            
+            // List Clicks (Deletion)
             document.getElementById('professores-list').addEventListener('click', (e) => { const b=e.target.closest('.delete-professor-btn'); if(b){ const p=localProfessores.find(x=>x.id===b.dataset.id); showConfirmModal('Excluir', `Excluir "${p.name}"?`, ()=>deleteProfessor(b.dataset.id)); } });
             document.getElementById('itens-table-body').addEventListener('click', (e) => { const b=e.target.closest('.delete-item-btn'); if(b){ const i=localItens.find(x=>x.id===b.dataset.id); showConfirmModal('Excluir', `Excluir "${i.name}"?`, ()=>deleteItem(b.dataset.id)); } });
             
+            // Filters
+            document.getElementById('filter-date').addEventListener('input', renderRetiradas);
+            document.getElementById('filter-professor').addEventListener('input', renderRetiradas);
+            document.getElementById('filter-item').addEventListener('input', renderRetiradas);
+            document.getElementById('clear-filter-btn').addEventListener('click', () => {
+                document.getElementById('filter-date').value = '';
+                document.getElementById('filter-professor').value = '';
+                document.getElementById('filter-item').value = '';
+                renderRetiradas();
+            });
+
+            // Main Actions
             document.getElementById('nova-retirada-btn').addEventListener('click', () => {
                 if (currentOperator === 'Nenhum') {
                     showMessageModal('Aviso', 'Por favor, identifique o operador antes de criar uma nova retirada.');
@@ -774,8 +825,6 @@
             document.getElementById('confirm-cancel-btn').addEventListener('click', () => closeModal(document.getElementById('confirm-modal')));
             document.getElementById('message-ok-btn').addEventListener('click', () => closeModal(document.getElementById('message-modal')));
             document.getElementById('gerar-pdf-btn').addEventListener('click', generatePDF);
-            document.getElementById('filter-date').addEventListener('change', renderRetiradas);
-            document.getElementById('clear-filter-btn').addEventListener('click', () => { document.getElementById('filter-date').value = ''; renderRetiradas(); });
         });
     </script>
 </body>
