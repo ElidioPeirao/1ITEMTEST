@@ -23,6 +23,11 @@
             border-bottom-color: #3b82f6;
             color: #3b82f6;
         }
+        .observation-text {
+            font-style: italic;
+            font-size: 0.75rem; /* text-xs */
+            color: #4b5563; /* text-gray-600 */
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -108,7 +113,7 @@
                             <thead class="text-xs text-gray-700 uppercase bg-gray-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3">Professor</th>
-                                    <th scope="col" class="px-6 py-3">Itens</th>
+                                    <th scope="col" class="px-6 py-3">Itens e Observações</th>
                                     <th scope="col" class="px-6 py-3">Data</th>
                                     <th scope="col" class="px-6 py-3">Operador</th>
                                     <th scope="col" class="px-6 py-3">Status</th>
@@ -191,6 +196,9 @@
             </div>
         </main>
     </div>
+    
+    <!-- Datalist for searchable item input. It will be populated by JS -->
+    <datalist id="items-datalist"></datalist>
 
     <!-- Modals -->
     <div id="operator-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 hidden z-50">
@@ -365,11 +373,24 @@
             const placeholder = document.getElementById('itens-placeholder');
             tbody.innerHTML = '';
             placeholder.classList.toggle('hidden', itens.length > 0);
+            
+            // Populate datalist for searchable inputs
+            const datalist = document.getElementById('items-datalist');
+            datalist.innerHTML = '';
+            
             itens.sort((a,b) => a.name.localeCompare(b.name)).forEach(item => {
+                // Render table row
                 const tr = document.createElement('tr');
                 tr.className = 'bg-white border-b';
                 tr.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.name}</td><td class="px-6 py-4">${item.quantity}</td><td class="px-6 py-4 text-center"><button data-id="${item.id}" class="delete-item-btn text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button></td>`;
                 tbody.appendChild(tr);
+
+                // Add to datalist
+                const option = document.createElement('option');
+                option.value = `${item.name} (Estoque: ${item.quantity})`;
+                option.dataset.id = item.id;
+                option.dataset.name = item.name;
+                datalist.appendChild(option);
             });
         }
         
@@ -414,7 +435,8 @@
                 const currentStatus = statusInfo[retirada.status] || { text: 'Desconhecido', color: 'gray' };
 
                 const itemsHtml = retirada.itens.map(item => `<div>${item.quantidade}x ${item.itemName} (Dev: ${item.quantidadeDevolvida || 0})</div>`).join('');
-                
+                const obsHtml = retirada.observacao ? `<div class="mt-2 observation-text"><i class="fas fa-comment-dots mr-1"></i>${retirada.observacao}</div>` : '';
+
                 let actionsHtml = `<button data-id="${retirada.id}" title="Editar Retirada" class="edit-retirada-btn text-blue-500 hover:text-blue-700"><i class="fas fa-edit"></i></button>
                                    <button data-id="${retirada.id}" title="Excluir Retirada" class="delete-retirada-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>`;
                 
@@ -428,7 +450,7 @@
 
                 tr.innerHTML = `
                     <td class="px-6 py-4 font-medium text-gray-900">${retirada.professorName}</td>
-                    <td class="px-6 py-4 text-xs">${itemsHtml}</td>
+                    <td class="px-6 py-4 text-xs">${itemsHtml}${obsHtml}</td>
                     <td class="px-6 py-4">${new Date(retirada.dataRetirada + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                     <td class="px-6 py-4 text-gray-600">${retirada.operator || 'N/A'}</td>
                     <td class="px-6 py-4">
@@ -456,18 +478,35 @@
             const div = document.createElement('div');
             div.className = 'flex items-center gap-2 item-selection-row';
             
-            const availableItems = localItens.filter(i => i.quantity > 0 || (itemData && i.id === itemData.itemId));
-            let optionsHtml = '<option value="">Selecione um item</option>';
-            availableItems.forEach(item => {
-                const selected = itemData && item.id === itemData.itemId ? 'selected' : '';
-                optionsHtml += `<option value="${item.id}" ${selected}>${item.name} (Estoque: ${item.quantity})</option>`;
-            });
-
+            // Use an input with a datalist for search functionality
+            const inputId = `item-search-${Math.random().toString(36).substring(7)}`;
             div.innerHTML = `
-                <select class="item-select mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm" required>${optionsHtml}</select>
+                <input list="items-datalist" id="${inputId}" class="item-search-input mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm" placeholder="Digite para buscar um item..." required value="${itemData ? itemData.itemName : ''}" ${itemData ? `data-item-id="${itemData.itemId}"` : ''}>
                 <input type="number" class="item-quantity w-24 p-2 border border-gray-300 rounded-md" placeholder="Qtd" min="1" required value="${itemData ? itemData.quantidade : ''}">
-                <button type="button" class="remove-item-row-btn text-red-500 hover:text-red-700"><i class="fas fa-times-circle"></i></button>`;
+                <button type="button" class="remove-item-row-btn text-red-500 hover:text-red-700"><i class="fas fa-times-circle"></i></button>
+            `;
             document.getElementById('retirada-itens-list').appendChild(div);
+
+            // Add event listener to capture the ID when a valid item is selected
+            const input = div.querySelector('.item-search-input');
+            input.addEventListener('change', (e) => {
+                const value = e.target.value;
+                const options = document.querySelectorAll('#items-datalist option');
+                let selectedOption = null;
+                options.forEach(opt => {
+                    if (opt.value === value) {
+                        selectedOption = opt;
+                    }
+                });
+
+                if (selectedOption) {
+                    e.target.dataset.itemId = selectedOption.dataset.id;
+                    e.target.dataset.itemName = selectedOption.dataset.name;
+                } else {
+                    delete e.target.dataset.itemId;
+                    delete e.target.dataset.itemName;
+                }
+            });
         }
         
         // --- FIREBASE LOGIC (CRUD) ---
@@ -653,13 +692,39 @@
         function generatePDF() {
             const { jsPDF } = window.jspdf;
             const docPdf = new jsPDF();
+            
+            docPdf.setFontSize(18);
             docPdf.text("Relatório de Movimentações do Almoxarifado", 14, 22);
+            docPdf.setFontSize(11);
+            docPdf.setTextColor(100);
+            docPdf.text(`Relatório gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 29);
+
+            const tableData = [];
+            const displayedRows = retiradasTableBody.querySelectorAll('tr');
+
+            displayedRows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const professor = cells[0].textContent;
+                const itemsAndObs = cells[1];
+                const data = cells[2].textContent;
+                const operador = cells[3].textContent;
+                const status = cells[4].querySelector('span').textContent.trim();
+
+                const items = Array.from(itemsAndObs.querySelectorAll('div:not(.observation-text)')).map(d => d.textContent).join('\n');
+                const obs = itemsAndObs.querySelector('.observation-text')?.textContent || '';
+                
+                tableData.push([professor, items, data, operador, status, obs]);
+            });
+
             docPdf.autoTable({
-                html: '#retiradas-table-body', 
-                startY: 35, 
+                startY: 35,
+                head: [['Professor', 'Itens', 'Data', 'Operador', 'Status', 'Observação']],
+                body: tableData,
                 theme: 'striped',
                 headStyles: { fillColor: [41, 128, 185] },
+                styles: { cellPadding: 2, fontSize: 8 },
             });
+
             docPdf.save(`relatorio_almoxarifado_${new Date().toISOString().slice(0,10)}.pdf`);
         }
         
@@ -740,15 +805,24 @@
                 const itemRows = document.querySelectorAll('.item-selection-row');
                 const items = [];
                 let valid = true;
+
                 itemRows.forEach(row => {
-                    const sel = row.querySelector('.item-select');
-                    const itemId = sel.value;
-                    const itemName = sel.options[sel.selectedIndex].text.split(' (')[0];
+                    const input = row.querySelector('.item-search-input');
                     const quantidade = Number(row.querySelector('.item-quantity').value);
-                    if(itemId && quantidade > 0) items.push({ itemId, itemName, quantidade, quantidadeDevolvida: 0 }); else valid = false;
+                    const itemId = input.dataset.itemId;
+                    const itemName = input.dataset.itemName;
+                    
+                    if(itemId && itemName && quantidade > 0) {
+                        items.push({ itemId, itemName, quantidade, quantidadeDevolvida: 0 });
+                    } else {
+                        valid = false;
+                    }
                 });
 
-                if (!valid || items.length === 0) { showMessageModal('Erro', 'Preencha todos os campos dos itens.'); return; }
+                if (!valid || items.length === 0) { 
+                    showMessageModal('Erro', 'Verifique se todos os itens foram selecionados corretamente da lista e se as quantidades são válidas.'); 
+                    return; 
+                }
 
                 const profSel = document.getElementById('retirada-professor');
                 const data = {
