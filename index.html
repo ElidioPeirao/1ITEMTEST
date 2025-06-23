@@ -264,19 +264,19 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, doc, addDoc, getDocs, onSnapshot, updateDoc, deleteDoc, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- FIREBASE CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyCiSA3hcGqJ4BKtkxNrS9DBrEP4NcpxAVo",
             authDomain: "almoxeprojects.firebaseapp.com",
             projectId: "almoxeprojects",
-            storageBucket: "almoxeprojects.appspot.com",
+            storageBucket: "almoxeprojects.appspot.com", // Corrected storage bucket
             messagingSenderId: "933670924253",
             appId: "1:933670924253:web:64f137671adeab3f201034",
             measurementId: "G-WDEKYB0Y20"
         };
-        const appId = 'almoxarifado-app-global'; // Using a more generic ID as it's now global
+        const appId = 'almoxarifado-app-global';
 
         // --- FIREBASE INIT ---
         let app, db, auth, userId, isAuthReady = false;
@@ -462,7 +462,6 @@
                         isAuthReady = true;
                         attachListeners();
                     } else {
-                        // For this public setup, anonymous sign-in is sufficient
                         await signInAnonymously(auth);
                     }
                 });
@@ -478,133 +477,141 @@
 
         function attachListeners() {
             if (!isAuthReady) return;
-            // Now using a global path, not user-specific
-            const commonPath = `artifacts/${appId}/public/data`;
+            const commonPath = `almoxarifado-data`; // Simplified global path
             
             if (unsubscribeProfessores) unsubscribeProfessores();
             unsubscribeProfessores = onSnapshot(collection(db, `${commonPath}/professores`), (snap) => {
                 localProfessores = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderProfessores(localProfessores);
-            });
+            }, (error) => console.error("Error listening to professors: ", error));
             
             if (unsubscribeItens) unsubscribeItens();
             unsubscribeItens = onSnapshot(collection(db, `${commonPath}/itens`), (snap) => {
                 localItens = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderItens(localItens);
-            });
+            }, (error) => console.error("Error listening to items: ", error));
             
             if (unsubscribeRetiradas) unsubscribeRetiradas();
             unsubscribeRetiradas = onSnapshot(collection(db, `${commonPath}/retiradas`), (snap) => {
                 allRetiradas = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderRetiradas();
-            });
+            }, (error) => console.error("Error listening to retiradas: ", error));
         }
         
-        const getCollectionRef = (name) => collection(db, `artifacts/${appId}/public/data/${name}`);
-        const getDocRef = (coll, id) => doc(db, `artifacts/${appId}/public/data/${coll}`, id);
+        const getCollectionRef = (name) => collection(db, `almoxarifado-data/${name}`);
+        const getDocRef = (coll, id) => doc(db, `almoxarifado-data/${coll}`, id);
+        
+        // --- CRUD Functions with Error Handling ---
 
-        async function addProfessor(name) { await addDoc(getCollectionRef('professores'), { name }); }
-        async function addItem(name, quantity) { await addDoc(getCollectionRef('itens'), { name, quantity: Number(quantity) }); }
-        async function deleteProfessor(id) { await deleteDoc(getDocRef('professores', id)); }
-        async function deleteItem(id) { await deleteDoc(getDocRef('itens', id)); }
-        async function finalizeRetirada(id) { await updateDoc(getDocRef('retiradas', id), { status: 'Concluído com Pendência' }); }
+        async function addProfessor(name) { try { await addDoc(getCollectionRef('professores'), { name }); } catch(e) { console.error("Erro ao adicionar professor: ", e); showMessageModal("Erro de Banco de Dados", "Não foi possível salvar o professor. Verifique as regras de segurança do Firestore e o console para mais detalhes."); }}
+        async function addItem(name, quantity) { try { await addDoc(getCollectionRef('itens'), { name, quantity: Number(quantity) }); } catch(e) { console.error("Erro ao adicionar item: ", e); showMessageModal("Erro de Banco de Dados", "Não foi possível salvar o item. Verifique as regras de segurança do Firestore e o console para mais detalhes."); }}
+        async function deleteProfessor(id) { try { await deleteDoc(getDocRef('professores', id)); } catch(e) { console.error("Erro ao deletar professor: ", e); }}
+        async function deleteItem(id) { try { await deleteDoc(getDocRef('itens', id)); } catch(e) { console.error("Erro ao deletar item: ", e); }}
+        async function finalizeRetirada(id) { try { await updateDoc(getDocRef('retiradas', id), { status: 'Concluído com Pendência' }); } catch(e) { console.error("Erro ao finalizar retirada: ", e); }}
 
         async function saveRetirada(data) {
-            const batch = writeBatch(db);
-            
-            // Stock check
-            for (const item of data.itens) {
-                const stockItem = localItens.find(i => i.id === item.itemId);
-                const originalRetiradaQty = (data.id && currentRetirada) ? (currentRetirada.itens.find(i => i.itemId === item.itemId)?.quantidade || 0) : 0;
-                const availableStock = (stockItem ? stockItem.quantity : 0) + originalRetiradaQty;
-                if (item.quantidade > availableStock) {
-                    showMessageModal('Estoque Insuficiente', `Não há ${item.quantidade} unidades de "${item.itemName}". Estoque disponível: ${availableStock}.`);
-                    return false;
-                }
-            }
-
-            // Update logic
-            if (data.id) { // Editing existing retirada
-                if(currentRetirada) { // Revert old stock quantities
-                    for (const oldItem of currentRetirada.itens) {
-                        const itemRef = getDocRef('itens', oldItem.itemId);
-                        const stockItem = localItens.find(i => i.id === oldItem.itemId);
-                        if(stockItem) batch.update(itemRef, { quantity: stockItem.quantity + oldItem.quantidade });
+            try {
+                const batch = writeBatch(db);
+                
+                for (const item of data.itens) {
+                    const stockItem = localItens.find(i => i.id === item.itemId);
+                    const originalRetiradaQty = (data.id && currentRetirada) ? (currentRetirada.itens.find(i => i.itemId === item.itemId)?.quantidade || 0) : 0;
+                    const availableStock = (stockItem ? stockItem.quantity : 0) + originalRetiradaQty;
+                    if (item.quantidade > availableStock) {
+                        showMessageModal('Estoque Insuficiente', `Não há ${item.quantidade} unidades de "${item.itemName}". Estoque disponível: ${availableStock}.`);
+                        return false;
                     }
                 }
-                batch.update(getDocRef('retiradas', data.id), data);
-            } else { // New retirada
-                data.operator = currentOperator; // Add operator on creation
-                const newRetiradaRef = doc(getCollectionRef('retiradas'));
-                data.id = newRetiradaRef.id;
-                batch.set(newRetiradaRef, data);
-            }
-            
-            // Deduct new quantities
-            for (const item of data.itens) {
-                const itemRef = getDocRef('itens', item.itemId);
-                const stockItem = localItens.find(i => i.id === item.itemId);
-                const originalRetiradaQty = (data.id && currentRetirada) ? (currentRetirada.itens.find(i => i.itemId === item.itemId)?.quantidade || 0) : 0;
-                const newStock = (stockItem ? stockItem.quantity : 0) + originalRetiradaQty - item.quantidade;
-                batch.update(itemRef, { quantity: newStock });
-            }
 
-            await batch.commit();
-            currentRetirada = null;
-            return true;
+                if (data.id) {
+                    if(currentRetirada) {
+                        for (const oldItem of currentRetirada.itens) {
+                            const itemRef = getDocRef('itens', oldItem.itemId);
+                            const stockItem = localItens.find(i => i.id === oldItem.itemId);
+                            if(stockItem) batch.update(itemRef, { quantity: stockItem.quantity + oldItem.quantidade });
+                        }
+                    }
+                    batch.update(getDocRef('retiradas', data.id), data);
+                } else {
+                    data.operator = currentOperator;
+                    const newRetiradaRef = doc(getCollectionRef('retiradas'));
+                    data.id = newRetiradaRef.id;
+                    batch.set(newRetiradaRef, data);
+                }
+                
+                for (const item of data.itens) {
+                    const itemRef = getDocRef('itens', item.itemId);
+                    const stockItem = localItens.find(i => i.id === item.itemId);
+                    const originalRetiradaQty = (data.id && currentRetirada) ? (currentRetirada.itens.find(i => i.itemId === item.itemId)?.quantidade || 0) : 0;
+                    const newStock = (stockItem ? stockItem.quantity : 0) + originalRetiradaQty - item.quantidade;
+                    batch.update(itemRef, { quantity: newStock });
+                }
+
+                await batch.commit();
+                currentRetirada = null;
+                return true;
+            } catch (e) {
+                console.error("Erro ao salvar retirada: ", e);
+                showMessageModal("Erro de Banco de Dados", "Não foi possível salvar a retirada. Verifique o console.");
+                return false;
+            }
         }
 
         async function deleteRetirada(id) {
-            const batch = writeBatch(db);
-            const retiradaRef = getDocRef('retiradas', id);
-            
-            const retiradaData = allRetiradas.find(r => r.id === id);
-            if (!retiradaData) return;
+            try {
+                const batch = writeBatch(db);
+                const retiradaRef = getDocRef('retiradas', id);
+                const retiradaData = allRetiradas.find(r => r.id === id);
+                if (!retiradaData) return;
 
-            // Return items to stock if not fully returned
-            for (const retiradaItem of retiradaData.itens) {
-                const stockItem = localItens.find(i => i.id === retiradaItem.itemId);
-                if(stockItem) {
-                    const itemRef = getDocRef('itens', retiradaItem.itemId);
-                    const returnedQty = retiradaItem.quantidade - (retiradaItem.quantidadeDevolvida || 0);
-                    if (returnedQty > 0) {
-                         batch.update(itemRef, { quantity: stockItem.quantity + returnedQty });
+                for (const retiradaItem of retiradaData.itens) {
+                    const stockItem = localItens.find(i => i.id === retiradaItem.itemId);
+                    if(stockItem) {
+                        const itemRef = getDocRef('itens', retiradaItem.itemId);
+                        const returnedQty = retiradaItem.quantidade - (retiradaItem.quantidadeDevolvida || 0);
+                        if (returnedQty > 0) {
+                             batch.update(itemRef, { quantity: stockItem.quantity + returnedQty });
+                        }
                     }
                 }
+                batch.delete(retiradaRef);
+                await batch.commit();
+            } catch (e) {
+                 console.error("Erro ao deletar retirada: ", e);
             }
-            batch.delete(retiradaRef);
-            await batch.commit();
         }
         
         async function saveDevolucao(data) {
-            const batch = writeBatch(db);
-            const retiradaRef = getDocRef('retiradas', data.id);
-            
-            let totalRetirado = 0;
-            let totalDevolvidoAcumulado = 0;
-            
-            const updatedItens = currentRetirada.itens.map(retiradaItem => {
-                const devItem = data.itensDevolvidos.find(d => d.itemId === retiradaItem.itemId);
-                const qtyDevolvidaAgora = devItem ? Number(devItem.quantidade) : 0;
+            try {
+                const batch = writeBatch(db);
+                const retiradaRef = getDocRef('retiradas', data.id);
+                let totalRetirado = 0;
+                let totalDevolvidoAcumulado = 0;
                 
-                if (qtyDevolvidaAgora > 0) {
-                     const itemRef = getDocRef('itens', retiradaItem.itemId);
-                     const stockItem = localItens.find(i => i.id === retiradaItem.itemId);
-                     if (stockItem) batch.update(itemRef, { quantity: stockItem.quantity + qtyDevolvidaAgora });
-                }
+                const updatedItens = currentRetirada.itens.map(retiradaItem => {
+                    const devItem = data.itensDevolvidos.find(d => d.itemId === retiradaItem.itemId);
+                    const qtyDevolvidaAgora = devItem ? Number(devItem.quantidade) : 0;
+                    
+                    if (qtyDevolvidaAgora > 0) {
+                         const itemRef = getDocRef('itens', retiradaItem.itemId);
+                         const stockItem = localItens.find(i => i.id === retiradaItem.itemId);
+                         if (stockItem) batch.update(itemRef, { quantity: stockItem.quantity + qtyDevolvidaAgora });
+                    }
 
-                const novaQtdDevolvida = (retiradaItem.quantidadeDevolvida || 0) + qtyDevolvidaAgora;
-                totalRetirado += retiradaItem.quantidade;
-                totalDevolvidoAcumulado += novaQtdDevolvida;
+                    const novaQtdDevolvida = (retiradaItem.quantidadeDevolvida || 0) + qtyDevolvidaAgora;
+                    totalRetirado += retiradaItem.quantidade;
+                    totalDevolvidoAcumulado += novaQtdDevolvida;
+                    return { ...retiradaItem, quantidadeDevolvida: novaQtdDevolvida };
+                });
+
+                const status = totalDevolvidoAcumulado >= totalRetirado ? 'Devolvido Totalmente' : 'Devolvido Parcialmente';
                 
-                return { ...retiradaItem, quantidadeDevolvida: novaQtdDevolvida };
-            });
-
-            const status = totalDevolvidoAcumulado >= totalRetirado ? 'Devolvido Totalmente' : 'Devolvido Parcialmente';
-            
-            batch.update(retiradaRef, { itens: updatedItens, status, observacao: data.observacao, dataDevolucao: new Date().toISOString() });
-            await batch.commit();
-            currentRetirada = null;
+                batch.update(retiradaRef, { itens: updatedItens, status, observacao: data.observacao, dataDevolucao: new Date().toISOString() });
+                await batch.commit();
+                currentRetirada = null;
+            } catch(e) {
+                console.error("Erro ao salvar devolução: ", e);
+            }
         }
 
         function generatePDF() {
