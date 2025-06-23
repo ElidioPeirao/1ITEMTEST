@@ -1,1 +1,775 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gerenciamento de Almoxarifado</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- jsPDF for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
+    <style>
+        /* Custom styles for better UX */
+        body { font-family: 'Inter', sans-serif; }
+        .modal { transition: opacity 0.3s ease; }
+        .tab-button.active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Main Container -->
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">
+                <i class="fas fa-warehouse mr-3 text-blue-500"></i>Gerenciamento de Almoxarifado
+            </h1>
+            <p class="text-gray-500 mt-2">Um sistema para controlar empréstimos e devoluções de materiais.</p>
+        </header>
+
+        <!-- User and Operator Info -->
+        <div class="flex justify-center items-center gap-4 mb-6 p-3 bg-gray-200 rounded-lg">
+             <div id="operator-info" class="text-sm">
+                <i class="fas fa-user-shield text-gray-600"></i>
+                <span>Operador: <strong id="operator-name">Nenhum</strong></span>
+                <button id="change-operator-btn" class="ml-2 text-blue-600 hover:underline text-xs font-semibold">[Trocar]</button>
+            </div>
+            <div id="user-info" class="text-sm text-gray-600 border-l pl-4 hidden">
+                <i class="fas fa-fingerprint"></i> ID da Sessão: <strong id="userId-display"></strong>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="flex space-x-4" aria-label="Tabs">
+                <button data-tab="retiradas" class="tab-button active py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                    <i class="fas fa-dolly mr-2"></i>Retiradas e Devoluções
+                </button>
+                <button data-tab="professores" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                    <i class="fas fa-chalkboard-teacher mr-2"></i>Professores
+                </button>
+                <button data-tab="itens" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300">
+                    <i class="fas fa-box-open mr-2"></i>Itens do Almoxarifado
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tabs Content -->
+        <main id="tabs-content">
+            <!-- Retiradas Tab -->
+            <div id="tab-content-retiradas" class="tab-pane active">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                    <h2 class="text-2xl font-semibold text-gray-700">Controle de Retiradas</h2>
+                    <div class="flex flex-wrap gap-2">
+                         <button id="gerar-pdf-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                            <i class="fas fa-file-pdf mr-2"></i>Gerar Relatório
+                        </button>
+                        <button id="nova-retirada-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                            <i class="fas fa-plus-circle mr-2"></i>Nova Retirada
+                        </button>
+                    </div>
+                </div>
+                <!-- History Filter -->
+                 <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-col md:flex-row items-center gap-4">
+                    <label for="filter-date" class="font-semibold text-gray-600"><i class="fas fa-calendar-alt mr-2"></i>Filtrar por data:</label>
+                    <input type="date" id="filter-date" class="p-2 border border-gray-300 rounded-md">
+                    <button id="clear-filter-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Limpar Filtro</button>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Professor</th>
+                                    <th scope="col" class="px-6 py-3">Itens</th>
+                                    <th scope="col" class="px-6 py-3">Data</th>
+                                    <th scope="col" class="px-6 py-3">Operador</th>
+                                    <th scope="col" class="px-6 py-3">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="retiradas-table-body">
+                                <!-- Rows will be inserted by JS -->
+                            </tbody>
+                        </table>
+                         <p id="retiradas-placeholder" class="text-center py-8 text-gray-400">Nenhuma retirada registrada ainda.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Professores Tab -->
+            <div id="tab-content-professores" class="tab-pane hidden">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-6">Cadastro de Professores</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1">
+                        <div class="bg-white p-6 rounded-lg shadow-lg">
+                            <h3 class="font-bold mb-4">Adicionar Professor</h3>
+                            <form id="add-professor-form">
+                                <input type="text" id="professor-name" placeholder="Nome do Professor" class="w-full p-2 border border-gray-300 rounded-md" required>
+                                <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                    Adicionar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <div class="bg-white p-6 rounded-lg shadow-lg">
+                            <h3 class="font-bold mb-4">Professores Cadastrados</h3>
+                            <ul id="professores-list" class="space-y-2">
+                                <!-- List items will be inserted by JS -->
+                            </ul>
+                             <p id="professores-placeholder" class="text-center py-8 text-gray-400">Nenhum professor cadastrado.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Itens Tab -->
+            <div id="tab-content-itens" class="tab-pane hidden">
+                 <h2 class="text-2xl font-semibold text-gray-700 mb-6">Cadastro de Itens</h2>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1">
+                        <div class="bg-white p-6 rounded-lg shadow-lg">
+                            <h3 class="font-bold mb-4">Adicionar Novo Item</h3>
+                            <form id="add-item-form">
+                                <input type="text" id="item-name" placeholder="Nome do Item" class="w-full p-2 border border-gray-300 rounded-md mb-2" required>
+                                <input type="number" id="item-quantity" placeholder="Quantidade em Estoque" class="w-full p-2 border border-gray-300 rounded-md" required min="1">
+                                <button type="submit" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                    Adicionar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2">
+                         <div class="bg-white p-6 rounded-lg shadow-lg">
+                            <h3 class="font-bold mb-4">Itens no Almoxarifado</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left text-gray-500">
+                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="px-6 py-3">Item</th>
+                                            <th scope="col" class="px-6 py-3">Qtd. em Estoque</th>
+                                            <th scope="col" class="px-6 py-3 text-center">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="itens-table-body">
+                                        <!-- Rows will be inserted by JS -->
+                                    </tbody>
+                                </table>
+                                <p id="itens-placeholder" class="text-center py-8 text-gray-400">Nenhum item cadastrado.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="operator-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm">
+            <h3 class="text-lg font-bold mb-4">Identificar Operador</h3>
+            <form id="operator-form">
+                <input type="text" id="operator-input" placeholder="Digite seu nome" class="w-full p-2 border border-gray-300 rounded-md" required>
+                <div class="flex justify-end gap-4 mt-4">
+                    <button type="button" id="cancel-operator-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" id="save-operator-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="retirada-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-8 w-full max-w-2xl transform transition-all -translate-y-full">
+            <h2 id="modal-title" class="text-2xl font-bold mb-6">Nova Retirada de Material</h2>
+            <form id="retirada-form">
+                <input type="hidden" id="retirada-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="retirada-professor" class="block text-sm font-medium text-gray-700">Professor</label>
+                        <select id="retirada-professor" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" required></select>
+                    </div>
+                    <div>
+                        <label for="retirada-date" class="block text-sm font-medium text-gray-700">Data da Retirada</label>
+                        <input type="date" id="retirada-date" class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                </div>
+                
+                <h3 class="font-semibold mt-6 mb-2">Itens para Retirada</h3>
+                <div id="retirada-itens-list" class="space-y-3 max-h-48 overflow-y-auto pr-2"></div>
+                
+                <div class="flex justify-start mt-4">
+                    <button type="button" id="add-item-to-retirada-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">
+                        <i class="fas fa-plus mr-2"></i>Adicionar outro item
+                    </button>
+                </div>
+                
+                <div class="flex justify-end gap-4 mt-8">
+                    <button type="button" id="cancel-retirada-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="devolucao-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-8 w-full max-w-2xl transform transition-all -translate-y-full">
+             <h2 class="text-2xl font-bold mb-6">Registrar Devolução</h2>
+             <form id="devolucao-form">
+                <input type="hidden" id="devolucao-id">
+                <p class="mb-4">Professor: <strong id="devolucao-professor-name"></strong></p>
+                <div id="devolucao-itens-list" class="space-y-4"></div>
+                <div class="mt-6">
+                    <label for="devolucao-observacao" class="block text-sm font-medium text-gray-700">Observação (para devoluções parciais)</label>
+                    <textarea id="devolucao-observacao" rows="3" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Ex: Um item foi danificado."></textarea>
+                </div>
+                <div class="flex justify-end gap-4 mt-8">
+                    <button type="button" id="cancel-devolucao-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar Devolução</button>
+                </div>
+             </form>
+        </div>
+    </div>
+    
+    <div id="confirm-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm">
+            <h3 id="confirm-title" class="text-lg font-bold">Confirmar Ação</h3>
+            <p id="confirm-message" class="my-4 text-gray-600">Você tem certeza?</p>
+            <div class="flex justify-end gap-4">
+                 <button id="confirm-cancel-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                 <button id="confirm-ok-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="message-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm text-center">
+            <h3 id="message-title" class="text-lg font-bold text-yellow-500">Aviso</h3>
+            <p id="message-text" class="my-4 text-gray-600"></p>
+            <button id="message-ok-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">OK</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, doc, addDoc, getDocs, onSnapshot, updateDoc, deleteDoc, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCiSA3hcGqJ4BKtkxNrS9DBrEP4NcpxAVo",
+            authDomain: "almoxeprojects.firebaseapp.com",
+            projectId: "almoxeprojects",
+            storageBucket: "almoxeprojects.appspot.com",
+            messagingSenderId: "933670924253",
+            appId: "1:933670924253:web:64f137671adeab3f201034",
+            measurementId: "G-WDEKYB0Y20"
+        };
+        const appId = 'almoxarifado-app-global'; // Using a more generic ID as it's now global
+
+        // --- FIREBASE INIT ---
+        let app, db, auth, userId, isAuthReady = false;
+        let unsubscribeProfessores, unsubscribeItens, unsubscribeRetiradas;
+        
+        // --- LOCAL STATE ---
+        let localProfessores = [];
+        let localItens = [];
+        let allRetiradas = [];
+        let currentRetirada = null;
+        let currentOperator = 'Nenhum';
+
+        // --- DOM ELEMENTS ---
+        const retiradasTableBody = document.getElementById('retiradas-table-body');
+        const retiradasPlaceholder = document.getElementById('retiradas-placeholder');
+        
+        // --- MODAL FUNCTIONS ---
+        function openModal(modal) {
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                const innerDiv = modal.querySelector('div[class*="transform"]');
+                if (innerDiv) innerDiv.classList.remove('-translate-y-full');
+            }, 10);
+        }
+
+        function closeModal(modal) {
+            const innerDiv = modal.querySelector('div[class*="transform"]');
+            if (innerDiv) {
+                innerDiv.classList.add('-translate-y-full');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            } else {
+                 modal.classList.add('hidden');
+            }
+        }
+        
+        function showConfirmModal(title, message, onConfirm) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            const confirmBtn = document.getElementById('confirm-ok-btn');
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            newConfirmBtn.onclick = () => { onConfirm(); closeModal(document.getElementById('confirm-modal')); };
+            openModal(document.getElementById('confirm-modal'));
+        }
+        
+        function showMessageModal(title, message) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-text').textContent = message;
+            openModal(document.getElementById('message-modal'));
+        }
+
+        // --- RENDER FUNCTIONS ---
+        
+        function renderProfessores(professores) {
+            const list = document.getElementById('professores-list');
+            const placeholder = document.getElementById('professores-placeholder');
+            list.innerHTML = '';
+            placeholder.classList.toggle('hidden', professores.length > 0);
+            professores.sort((a,b) => a.name.localeCompare(b.name)).forEach(prof => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg';
+                li.innerHTML = `<span>${prof.name}</span><button data-id="${prof.id}" class="delete-professor-btn text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button>`;
+                list.appendChild(li);
+            });
+        }
+
+        function renderItens(itens) {
+            const tbody = document.getElementById('itens-table-body');
+            const placeholder = document.getElementById('itens-placeholder');
+            tbody.innerHTML = '';
+            placeholder.classList.toggle('hidden', itens.length > 0);
+            itens.sort((a,b) => a.name.localeCompare(b.name)).forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'bg-white border-b';
+                tr.innerHTML = `<td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.name}</td><td class="px-6 py-4">${item.quantity}</td><td class="px-6 py-4 text-center"><button data-id="${item.id}" class="delete-item-btn text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        function renderRetiradas() {
+            let filteredRetiradas = [...allRetiradas];
+            const filterDate = document.getElementById('filter-date').value;
+
+            if (filterDate) {
+                filteredRetiradas = filteredRetiradas.filter(r => r.dataRetirada === filterDate);
+            }
+
+            retiradasTableBody.innerHTML = '';
+            retiradasPlaceholder.classList.toggle('hidden', filteredRetiradas.length > 0);
+            
+            const statusOrder = { 'Pendente': 1, 'Devolvido Parcialmente': 2, 'Devolvido Totalmente': 3, 'Concluído com Pendência': 4 };
+
+            filteredRetiradas
+              .sort((a, b) => {
+                  const orderA = statusOrder[a.status] || 99;
+                  const orderB = statusOrder[b.status] || 99;
+                  if (orderA !== orderB) return orderA - orderB;
+                  return new Date(b.dataRetirada) - new Date(a.dataRetirada);
+              })
+              .forEach(retirada => {
+                const tr = document.createElement('tr');
+                tr.className = 'bg-white border-b';
+                
+                const statusInfo = {
+                    'Pendente': { text: 'Pendente', color: 'red' },
+                    'Devolvido Parcialmente': { text: 'Dev. Parcial', color: 'yellow' },
+                    'Devolvido Totalmente': { text: 'Devolvido', color: 'green' },
+                    'Concluído com Pendência': { text: 'Finalizado', color: 'teal' }
+                };
+                const currentStatus = statusInfo[retirada.status] || { text: 'Desconhecido', color: 'gray' };
+
+                const itemsHtml = retirada.itens.map(item => `<div>${item.quantidade}x ${item.itemName} (Dev: ${item.quantidadeDevolvida || 0})</div>`).join('');
+                
+                let actionsHtml = `<button data-id="${retirada.id}" title="Editar Retirada" class="edit-retirada-btn text-blue-500 hover:text-blue-700"><i class="fas fa-edit"></i></button>
+                                   <button data-id="${retirada.id}" title="Excluir Retirada" class="delete-retirada-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>`;
+                
+                if (retirada.status === 'Pendente' || retirada.status === 'Devolvido Parcialmente') {
+                    actionsHtml = `<button data-id="${retirada.id}" title="Registrar Devolução" class="devolucao-btn text-green-500 hover:text-green-700"><i class="fas fa-undo-alt"></i></button>` + actionsHtml;
+                }
+                
+                if (retirada.status === 'Devolvido Parcialmente') {
+                    actionsHtml += `<button data-id="${retirada.id}" title="Finalizar com Pendência" class="finalize-btn text-teal-500 hover:text-teal-700"><i class="fas fa-check-double"></i></button>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 font-medium text-gray-900">${retirada.professorName}</td>
+                    <td class="px-6 py-4 text-xs">${itemsHtml}</td>
+                    <td class="px-6 py-4">${new Date(retirada.dataRetirada + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td class="px-6 py-4 text-gray-600">${retirada.operator || 'N/A'}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${currentStatus.color}-100 text-${currentStatus.color}-800">
+                            ${currentStatus.text}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-center space-x-2">${actionsHtml}</td>
+                `;
+                retiradasTableBody.appendChild(tr);
+            });
+        }
+        
+        function populateSelect(selectElement, options, placeholder) {
+            selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+            options.sort((a,b) => a.name.localeCompare(b.name)).forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.id;
+                option.textContent = opt.name;
+                selectElement.appendChild(option);
+            });
+        }
+        
+        function createItemSelectionRow(itemData = null) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2 item-selection-row';
+            
+            const availableItems = localItens.filter(i => i.quantity > 0 || (itemData && i.id === itemData.itemId));
+            let optionsHtml = '<option value="">Selecione um item</option>';
+            availableItems.forEach(item => {
+                const selected = itemData && item.id === itemData.itemId ? 'selected' : '';
+                optionsHtml += `<option value="${item.id}" ${selected}>${item.name} (Estoque: ${item.quantity})</option>`;
+            });
+
+            div.innerHTML = `
+                <select class="item-select mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm" required>${optionsHtml}</select>
+                <input type="number" class="item-quantity w-24 p-2 border border-gray-300 rounded-md" placeholder="Qtd" min="1" required value="${itemData ? itemData.quantidade : ''}">
+                <button type="button" class="remove-item-row-btn text-red-500 hover:text-red-700"><i class="fas fa-times-circle"></i></button>`;
+            document.getElementById('retirada-itens-list').appendChild(div);
+        }
+        
+        // --- FIREBASE LOGIC (CRUD) ---
+        async function initialize() {
+            try {
+                app = initializeApp(firebaseConfig); 
+                db = getFirestore(app); 
+                auth = getAuth(app);
+                
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('userId-display').textContent = userId.substring(0, 10) + '...';
+                        document.getElementById('user-info').classList.remove('hidden');
+                        isAuthReady = true;
+                        attachListeners();
+                    } else {
+                        // For this public setup, anonymous sign-in is sufficient
+                        await signInAnonymously(auth);
+                    }
+                });
+            } catch (error) { 
+                console.error("Firebase init failed:", error);
+                document.body.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 rounded-lg">
+                    <h2 class="font-bold text-xl mb-2">Falha na Conexão com o Banco de Dados</h2>
+                    <p>Não foi possível iniciar o sistema. Verifique a configuração do Firebase no código e sua conexão com a internet.</p>
+                    <p class="mt-4 text-xs text-gray-500">Erro: ${error.message}</p>
+                </div>`
+            }
+        }
+
+        function attachListeners() {
+            if (!isAuthReady) return;
+            // Now using a global path, not user-specific
+            const commonPath = `artifacts/${appId}/public/data`;
+            
+            if (unsubscribeProfessores) unsubscribeProfessores();
+            unsubscribeProfessores = onSnapshot(collection(db, `${commonPath}/professores`), (snap) => {
+                localProfessores = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderProfessores(localProfessores);
+            });
+            
+            if (unsubscribeItens) unsubscribeItens();
+            unsubscribeItens = onSnapshot(collection(db, `${commonPath}/itens`), (snap) => {
+                localItens = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderItens(localItens);
+            });
+            
+            if (unsubscribeRetiradas) unsubscribeRetiradas();
+            unsubscribeRetiradas = onSnapshot(collection(db, `${commonPath}/retiradas`), (snap) => {
+                allRetiradas = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderRetiradas();
+            });
+        }
+        
+        const getCollectionRef = (name) => collection(db, `artifacts/${appId}/public/data/${name}`);
+        const getDocRef = (coll, id) => doc(db, `artifacts/${appId}/public/data/${coll}`, id);
+
+        async function addProfessor(name) { await addDoc(getCollectionRef('professores'), { name }); }
+        async function addItem(name, quantity) { await addDoc(getCollectionRef('itens'), { name, quantity: Number(quantity) }); }
+        async function deleteProfessor(id) { await deleteDoc(getDocRef('professores', id)); }
+        async function deleteItem(id) { await deleteDoc(getDocRef('itens', id)); }
+        async function finalizeRetirada(id) { await updateDoc(getDocRef('retiradas', id), { status: 'Concluído com Pendência' }); }
+
+        async function saveRetirada(data) {
+            const batch = writeBatch(db);
+            
+            // Stock check
+            for (const item of data.itens) {
+                const stockItem = localItens.find(i => i.id === item.itemId);
+                const originalRetiradaQty = (data.id && currentRetirada) ? (currentRetirada.itens.find(i => i.itemId === item.itemId)?.quantidade || 0) : 0;
+                const availableStock = (stockItem ? stockItem.quantity : 0) + originalRetiradaQty;
+                if (item.quantidade > availableStock) {
+                    showMessageModal('Estoque Insuficiente', `Não há ${item.quantidade} unidades de "${item.itemName}". Estoque disponível: ${availableStock}.`);
+                    return false;
+                }
+            }
+
+            // Update logic
+            if (data.id) { // Editing existing retirada
+                if(currentRetirada) { // Revert old stock quantities
+                    for (const oldItem of currentRetirada.itens) {
+                        const itemRef = getDocRef('itens', oldItem.itemId);
+                        const stockItem = localItens.find(i => i.id === oldItem.itemId);
+                        if(stockItem) batch.update(itemRef, { quantity: stockItem.quantity + oldItem.quantidade });
+                    }
+                }
+                batch.update(getDocRef('retiradas', data.id), data);
+            } else { // New retirada
+                data.operator = currentOperator; // Add operator on creation
+                const newRetiradaRef = doc(getCollectionRef('retiradas'));
+                data.id = newRetiradaRef.id;
+                batch.set(newRetiradaRef, data);
+            }
+            
+            // Deduct new quantities
+            for (const item of data.itens) {
+                const itemRef = getDocRef('itens', item.itemId);
+                const stockItem = localItens.find(i => i.id === item.itemId);
+                const originalRetiradaQty = (data.id && currentRetirada) ? (currentRetirada.itens.find(i => i.itemId === item.itemId)?.quantidade || 0) : 0;
+                const newStock = (stockItem ? stockItem.quantity : 0) + originalRetiradaQty - item.quantidade;
+                batch.update(itemRef, { quantity: newStock });
+            }
+
+            await batch.commit();
+            currentRetirada = null;
+            return true;
+        }
+
+        async function deleteRetirada(id) {
+            const batch = writeBatch(db);
+            const retiradaRef = getDocRef('retiradas', id);
+            
+            const retiradaData = allRetiradas.find(r => r.id === id);
+            if (!retiradaData) return;
+
+            // Return items to stock if not fully returned
+            for (const retiradaItem of retiradaData.itens) {
+                const stockItem = localItens.find(i => i.id === retiradaItem.itemId);
+                if(stockItem) {
+                    const itemRef = getDocRef('itens', retiradaItem.itemId);
+                    const returnedQty = retiradaItem.quantidade - (retiradaItem.quantidadeDevolvida || 0);
+                    if (returnedQty > 0) {
+                         batch.update(itemRef, { quantity: stockItem.quantity + returnedQty });
+                    }
+                }
+            }
+            batch.delete(retiradaRef);
+            await batch.commit();
+        }
+        
+        async function saveDevolucao(data) {
+            const batch = writeBatch(db);
+            const retiradaRef = getDocRef('retiradas', data.id);
+            
+            let totalRetirado = 0;
+            let totalDevolvidoAcumulado = 0;
+            
+            const updatedItens = currentRetirada.itens.map(retiradaItem => {
+                const devItem = data.itensDevolvidos.find(d => d.itemId === retiradaItem.itemId);
+                const qtyDevolvidaAgora = devItem ? Number(devItem.quantidade) : 0;
+                
+                if (qtyDevolvidaAgora > 0) {
+                     const itemRef = getDocRef('itens', retiradaItem.itemId);
+                     const stockItem = localItens.find(i => i.id === retiradaItem.itemId);
+                     if (stockItem) batch.update(itemRef, { quantity: stockItem.quantity + qtyDevolvidaAgora });
+                }
+
+                const novaQtdDevolvida = (retiradaItem.quantidadeDevolvida || 0) + qtyDevolvidaAgora;
+                totalRetirado += retiradaItem.quantidade;
+                totalDevolvidoAcumulado += novaQtdDevolvida;
+                
+                return { ...retiradaItem, quantidadeDevolvida: novaQtdDevolvida };
+            });
+
+            const status = totalDevolvidoAcumulado >= totalRetirado ? 'Devolvido Totalmente' : 'Devolvido Parcialmente';
+            
+            batch.update(retiradaRef, { itens: updatedItens, status, observacao: data.observacao, dataDevolucao: new Date().toISOString() });
+            await batch.commit();
+            currentRetirada = null;
+        }
+
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const docPdf = new jsPDF();
+            docPdf.text("Relatório de Movimentações do Almoxarifado", 14, 22);
+            docPdf.autoTable({
+                html: '#retiradas-table-body', 
+                startY: 35, 
+                theme: 'striped',
+                headStyles: { fillColor: [41, 128, 185] },
+            });
+            docPdf.save(`relatorio_almoxarifado_${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+        
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initialize();
+
+            // Operator Logic
+            const operatorModal = document.getElementById('operator-modal');
+            const operatorNameEl = document.getElementById('operator-name');
+            currentOperator = localStorage.getItem('almoxarifadoOperator') || 'Nenhum';
+            operatorNameEl.textContent = currentOperator;
+
+            document.getElementById('change-operator-btn').addEventListener('click', () => {
+                document.getElementById('operator-input').value = currentOperator !== 'Nenhum' ? currentOperator : '';
+                openModal(operatorModal);
+            });
+            document.getElementById('cancel-operator-btn').addEventListener('click', () => closeModal(operatorModal));
+            document.getElementById('operator-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const newName = document.getElementById('operator-input').value.trim();
+                if(newName) {
+                    currentOperator = newName;
+                    operatorNameEl.textContent = currentOperator;
+                    localStorage.setItem('almoxarifadoOperator', currentOperator);
+                    closeModal(operatorModal);
+                }
+            });
+
+            // Tab Logic
+            const tabs = document.querySelectorAll('.tab-button');
+            const tabPanes = document.querySelectorAll('.tab-pane');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    tabPanes.forEach(pane => pane.classList.toggle('hidden', pane.id !== `tab-content-${tab.dataset.tab}`));
+                });
+            });
+
+            document.getElementById('add-professor-form').addEventListener('submit', (e) => { e.preventDefault(); const i = document.getElementById('professor-name'); if(i.value.trim()){ addProfessor(i.value.trim()); i.value=''; } });
+            document.getElementById('add-item-form').addEventListener('submit', (e) => { e.preventDefault(); const n = document.getElementById('item-name'), q = document.getElementById('item-quantity'); if(n.value.trim()&&q.value){ addItem(n.value.trim(), q.value); n.value=q.value=''; } });
+            document.getElementById('professores-list').addEventListener('click', (e) => { const b=e.target.closest('.delete-professor-btn'); if(b){ const p=localProfessores.find(x=>x.id===b.dataset.id); showConfirmModal('Excluir', `Excluir "${p.name}"?`, ()=>deleteProfessor(b.dataset.id)); } });
+            document.getElementById('itens-table-body').addEventListener('click', (e) => { const b=e.target.closest('.delete-item-btn'); if(b){ const i=localItens.find(x=>x.id===b.dataset.id); showConfirmModal('Excluir', `Excluir "${i.name}"?`, ()=>deleteItem(b.dataset.id)); } });
+            
+            document.getElementById('nova-retirada-btn').addEventListener('click', () => {
+                if (currentOperator === 'Nenhum') {
+                    showMessageModal('Aviso', 'Por favor, identifique o operador antes de criar uma nova retirada.');
+                    return;
+                }
+                currentRetirada = null;
+                document.getElementById('retirada-form').reset();
+                document.getElementById('modal-title').textContent = 'Nova Retirada';
+                document.getElementById('retirada-date').value = new Date().toISOString().slice(0, 10);
+                populateSelect(document.getElementById('retirada-professor'), localProfessores, 'Selecione...');
+                document.getElementById('retirada-itens-list').innerHTML = '';
+                createItemSelectionRow();
+                openModal(document.getElementById('retirada-modal'));
+            });
+            
+            document.getElementById('retirada-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const itemRows = document.querySelectorAll('.item-selection-row');
+                const items = [];
+                let valid = true;
+                itemRows.forEach(row => {
+                    const sel = row.querySelector('.item-select');
+                    const itemId = sel.value;
+                    const itemName = sel.options[sel.selectedIndex].text.split(' (')[0];
+                    const quantidade = Number(row.querySelector('.item-quantity').value);
+                    if(itemId && quantidade > 0) items.push({ itemId, itemName, quantidade, quantidadeDevolvida: 0 }); else valid = false;
+                });
+
+                if (!valid || items.length === 0) { showMessageModal('Erro', 'Preencha todos os campos dos itens.'); return; }
+
+                const profSel = document.getElementById('retirada-professor');
+                const data = {
+                    id: document.getElementById('retirada-id').value,
+                    professorName: profSel.options[profSel.selectedIndex].text,
+                    professorId: profSel.value,
+                    dataRetirada: document.getElementById('retirada-date').value,
+                    itens: items,
+                    status: currentRetirada ? currentRetirada.status : 'Pendente',
+                    operator: currentRetirada ? currentRetirada.operator : currentOperator
+                };
+                
+                if(data.id && currentRetirada) { data.itens.forEach(ni=>{ const oi=currentRetirada.itens.find(i=>i.itemId===ni.itemId); if(oi) ni.quantidadeDevolvida=oi.quantidadeDevolvida||0; }); }
+                
+                const success = await saveRetirada(data);
+                if(success) closeModal(document.getElementById('retirada-modal'));
+            });
+
+            retiradasTableBody.addEventListener('click', async (e) => {
+                const target = e.target.closest('button');
+                if(!target) return;
+                const id = target.dataset.id;
+                currentRetirada = allRetiradas.find(r => r.id === id);
+                if(!currentRetirada) return;
+
+                if (target.classList.contains('delete-retirada-btn')) showConfirmModal('Excluir Retirada', 'Deseja excluir? Os itens pendentes voltarão ao estoque.', ()=>deleteRetirada(id));
+                if (target.classList.contains('finalize-btn')) showConfirmModal('Finalizar Retirada', 'Confirma a finalização desta retirada com itens pendentes?', ()=>finalizeRetirada(id));
+
+                if (target.classList.contains('edit-retirada-btn')) {
+                    document.getElementById('modal-title').textContent = 'Editar Retirada';
+                    document.getElementById('retirada-id').value = id;
+                    populateSelect(document.getElementById('retirada-professor'), localProfessores, 'Selecione...');
+                    document.getElementById('retirada-professor').value = currentRetirada.professorId;
+                    document.getElementById('retirada-date').value = currentRetirada.dataRetirada;
+                    const list = document.getElementById('retirada-itens-list'); list.innerHTML = '';
+                    currentRetirada.itens.forEach(item => createItemSelectionRow(item));
+                    openModal(document.getElementById('retirada-modal'));
+                }
+                
+                if (target.classList.contains('devolucao-btn')) {
+                    document.getElementById('devolucao-id').value = id;
+                    document.getElementById('devolucao-professor-name').textContent = currentRetirada.professorName;
+                    document.getElementById('devolucao-observacao').value = currentRetirada.observacao || '';
+                    const list = document.getElementById('devolucao-itens-list'); list.innerHTML = '';
+                    currentRetirada.itens.forEach(item => {
+                        const maxDev = item.quantidade - (item.quantidadeDevolvida || 0);
+                        if (maxDev > 0) {
+                            list.innerHTML += `<div class="p-3 bg-gray-50 rounded-md devolucao-item-row"><label class="block text-sm font-medium">${item.itemName}</label><p class="text-xs text-gray-500">Retirado: ${item.quantidade} | Devolvido: ${item.quantidadeDevolvida || 0}</p><input type="number" data-item-id="${item.itemId}" class="devolucao-quantity mt-1 w-full p-2 border rounded-md" placeholder="Qtd a devolver" min="0" max="${maxDev}" value="0"></div>`;
+                        }
+                    });
+                    openModal(document.getElementById('devolucao-modal'));
+                }
+            });
+            
+            document.getElementById('devolucao-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const itensDevolvidos = Array.from(document.querySelectorAll('.devolucao-item-row .devolucao-quantity'))
+                    .map(i => ({ itemId: i.dataset.itemId, quantidade: Number(i.value) }))
+                    .filter(i => i.quantidade > 0);
+                
+                await saveDevolucao({
+                    id: document.getElementById('devolucao-id').value,
+                    itensDevolvidos: itensDevolvidos,
+                    observacao: document.getElementById('devolucao-observacao').value
+                });
+                closeModal(document.getElementById('devolucao-modal'));
+            });
+            
+            // --- Other UI Listeners ---
+            document.getElementById('add-item-to-retirada-btn').addEventListener('click', () => createItemSelectionRow());
+            document.getElementById('retirada-itens-list').addEventListener('click', (e) => { if(e.target.closest('.remove-item-row-btn')) e.target.closest('.item-selection-row').remove(); });
+            document.getElementById('cancel-retirada-btn').addEventListener('click', () => closeModal(document.getElementById('retirada-modal')));
+            document.getElementById('cancel-devolucao-btn').addEventListener('click', () => closeModal(document.getElementById('devolucao-modal')));
+            document.getElementById('confirm-cancel-btn').addEventListener('click', () => closeModal(document.getElementById('confirm-modal')));
+            document.getElementById('message-ok-btn').addEventListener('click', () => closeModal(document.getElementById('message-modal')));
+            document.getElementById('gerar-pdf-btn').addEventListener('click', generatePDF);
+            document.getElementById('filter-date').addEventListener('change', renderRetiradas);
+            document.getElementById('clear-filter-btn').addEventListener('click', () => { document.getElementById('filter-date').value = ''; renderRetiradas(); });
+        });
+    </script>
+</body>
+</html>
