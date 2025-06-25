@@ -202,29 +202,36 @@
            - O seu site `https://elidiopeirao.github.io` precisa de permissão para enviar arquivos ao Google Storage.
            
            - **COMO RESOLVER (MÉTODO RECOMENDADO):**
-           a. Instale a ferramenta de linha de comando `gcloud` do Google Cloud, se ainda não tiver.
-           b. Crie um arquivo no seu computador chamado `cors-config.json` com o seguinte conteúdo exato:
+           a. Instale a ferramenta de linha de comando `gcloud` do Google Cloud.
+           b. Crie um arquivo no seu computador chamado `cors-config.json`.
+              **IMPORTANTE:** O erro `ERROR: 'str' object has no attribute 'items'` que você encontrou indica um problema no formato deste arquivo. Use o conteúdo simplificado abaixo, garantindo que não há caracteres extras.
+
+              ```json
               [
                 {
-                  "origin": ["https://elidiopeirao.github.io"],
-                  "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
-                  "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"],
-                  "maxAgeSeconds": 3600
-                }
-              ]
-           c. Abra o terminal, faça login (`gcloud auth login`), configure seu projeto (`gcloud config set project eprojectsnorma`) e execute o comando abaixo:
-           
-              gcloud storage buckets update gs://eprojectsnorma.appspot.com --cors-file=cors-config.json
-              
-           - **ALTERNATIVA RÁPIDA (MENOS SEGURA):** Se o passo acima for complexo, você pode permitir *qualquer* site. Para isso, o conteúdo do `cors-config.json` deve ser:
-              [
-                {
-                  "origin": ["*"],
-                  "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+                  "origin": ["[https://elidiopeirao.github.io](https://elidiopeirao.github.io)"],
+                  "method": ["GET", "PUT", "POST"],
                   "responseHeader": ["Content-Type"],
                   "maxAgeSeconds": 3600
                 }
               ]
+              ```
+           c. Abra o terminal, faça login (`gcloud auth login`), configure seu projeto (`gcloud config set project eprojectsnorma`) e execute o comando:
+           
+              gcloud storage buckets update gs://eprojectsnorma.appspot.com --cors-file=cors-config.json
+              
+           - **ALTERNATIVA RÁPIDA (MENOS SEGURA):** Se o passo acima falhar, você pode permitir *qualquer* site usando o seguinte conteúdo no `cors-config.json`:
+              
+              ```json
+              [
+                {
+                  "origin": ["*"],
+                  "method": ["GET", "PUT", "POST"],
+                  "responseHeader": ["Content-Type"],
+                  "maxAgeSeconds": 3600
+                }
+              ]
+              ```
         ================================================================================
         */
         import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
