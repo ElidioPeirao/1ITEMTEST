@@ -195,20 +195,41 @@
         1. REGRAS DE SEGURANÇA: Permitem que o app acesse o banco de dados e o storage.
            - Vá para o seu projeto no Firebase > Firestore Database > Rules
            - Vá para o seu projeto no Firebase > Storage > Rules
-           - Cole as regras fornecidas na documentação.
+           - Cole as regras recomendadas na documentação ou em respostas anteriores.
 
         2. CORS (Cross-Origin Resource Sharing) NO BUCKET DE STORAGE:
-           - ESTE É O PASSO MAIS IMPORTANTE PARA O UPLOAD DE ARQUIVOS FUNCIONAR.
-           - Você precisa permitir que o seu site envie arquivos para o Google Storage.
-           - A maneira mais confiável é via linha de comando (gcloud CLI).
-           - Crie um arquivo `cors.json` com `[{"origin": ["*"], "method": ["GET", "PUT", "POST"], "responseHeader": ["Content-Type"], "maxAgeSeconds": 3600}]`
-           - Execute: `gcloud storage buckets update gs://SEU-BUCKET-ID.appspot.com --cors-file=cors.json`
+           - ESTE É O PASSO CRÍTICO PARA O UPLOAD DE ARQUIVOS FUNCIONAR A PARTIR DO SEU SITE.
+           - O seu site `https://elidiopeirao.github.io` precisa de permissão para enviar arquivos ao Google Storage.
+           
+           - **COMO RESOLVER (MÉTODO RECOMENDADO):**
+           a. Instale a ferramenta de linha de comando `gcloud` do Google Cloud, se ainda não tiver.
+           b. Crie um arquivo no seu computador chamado `cors-config.json` com o seguinte conteúdo exato:
+              [
+                {
+                  "origin": ["https://elidiopeirao.github.io"],
+                  "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+                  "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"],
+                  "maxAgeSeconds": 3600
+                }
+              ]
+           c. Abra o terminal, faça login (`gcloud auth login`), configure seu projeto (`gcloud config set project eprojectsnorma`) e execute o comando abaixo:
+           
+              gcloud storage buckets update gs://eprojectsnorma.appspot.com --cors-file=cors-config.json
+              
+           - **ALTERNATIVA RÁPIDA (MENOS SEGURA):** Se o passo acima for complexo, você pode permitir *qualquer* site. Para isso, o conteúdo do `cors-config.json` deve ser:
+              [
+                {
+                  "origin": ["*"],
+                  "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+                  "responseHeader": ["Content-Type"],
+                  "maxAgeSeconds": 3600
+                }
+              ]
         ================================================================================
         */
         import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // *** ALTERAÇÃO: Importado listAll para exclusão recursiva de arquivos ***
         import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         // --- CONFIGURATION ---
@@ -395,21 +416,18 @@
             showToast("Banco de dados inicializado com dados de exemplo.", "info");
         }
         
-        // *** NOVO: Função para deletar conteúdo de uma "pasta" no Storage ***
         async function deleteFolderContents(path) {
             const listRef = ref(storage, path);
             console.log(`[STORAGE] Iniciando exclusão de arquivos em: ${path}`);
             try {
                 const res = await listAll(listRef);
                 
-                // Exclui todos os arquivos na pasta
                 const deleteFilePromises = res.items.map((itemRef) => {
                     console.log(`[STORAGE] Agendando exclusão do arquivo: ${itemRef.fullPath}`);
                     return deleteObject(itemRef);
                 });
                 await Promise.all(deleteFilePromises);
                 
-                // Exclui todas as subpastas recursivamente
                 const deleteFolderPromises = res.prefixes.map((folderRef) => {
                      console.log(`[STORAGE] Entrando na subpasta para exclusão: ${folderRef.fullPath}`);
                     return deleteFolderContents(folderRef.fullPath);
@@ -444,7 +462,6 @@
         });
         
         // --- MODAL & FORM LOGIC ---
-        // (O código dos modais e formulários permanece o mesmo da sua versão)
         function showCreateAdminModal() {
             const content = `
                 <form id="create-admin-form" class="space-y-4">
@@ -1083,7 +1100,6 @@
                         console.log("[ETAPA] Arquivo detectado. Iniciando processo de upload.", file);
                         buttonText.textContent = "Enviando PDF...";
                         
-                        // Caminho do arquivo no Storage: normas/cat-id/subcat-id/timestamp-nomearquivo.pdf
                         const filePath = `normas/${categoryId}/${subcategoryId}/${Date.now()}-${file.name}`;
                         console.log(`[ETAPA] Caminho do arquivo no Storage: ${filePath}`);
                         
@@ -1099,7 +1115,6 @@
                         pdfPath = filePath;
                         console.log(`[ETAPA] URL de download obtida: ${pdfUrl}`);
 
-                        // Se estiver editando e já existia um PDF, apaga o antigo
                         if (isEditing && standard.pdfPath && standard.pdfPath !== filePath) {
                             console.log(`[ETAPA] Deletando arquivo antigo: ${standard.pdfPath}`);
                             const oldFileRef = ref(storage, standard.pdfPath);
@@ -1173,7 +1188,6 @@
             });
         }
         
-        // *** ALTERAÇÃO: Função handleDelete atualizada para excluir arquivos do Storage ***
         async function handleDelete(type, id1, id2, id3) {
             let title, message, onConfirm;
             const newData = structuredClone(data);
@@ -1185,7 +1199,6 @@
                     onConfirm = async () => {
                         console.log(`[ETAPA] Excluindo categoria: ${id1}`);
                         
-                        // Deleta a pasta da categoria no Storage
                         await deleteFolderContents(`normas/${id1}`);
                         
                         delete newData[id1]; 
@@ -1201,7 +1214,6 @@
                     onConfirm = async () => { 
                         console.log(`[ETAPA] Excluindo subcategoria: ${id2} da categoria ${id1}`);
                         
-                        // Deleta a pasta da subcategoria no Storage
                         await deleteFolderContents(`normas/${id1}/${id2}`);
 
                         delete newData[id1].subcategories[id2]; 
@@ -1253,7 +1265,14 @@
         function handleSortToggle() {
             isSortMode = !isSortMode;
             console.log(`[ETAPA] Modo de ordenação alterado para: ${isSortMode}`);
-            if (!isSortMode) { if (sortableInstance) { const newaOrder = sortableInstance.toArray(); saveNewOrder(newOrder); sortableInstance.destroy(); sortableInstance = null; } }
+            if (!isSortMode) { 
+                if (sortableInstance) { 
+                    const newOrder = sortableInstance.toArray(); 
+                    saveNewOrder(newOrder); 
+                    sortableInstance.destroy(); 
+                    sortableInstance = null; 
+                } 
+            }
             render();
         }
         toggleSortModeBtn.addEventListener('click', handleSortToggle);
@@ -1269,8 +1288,13 @@
         function saveNewOrder(newIdOrder) {
             console.log("[ETAPA] Salvando nova ordem dos itens:", newIdOrder);
             const newData = structuredClone(data);
-            if (currentView.level === 'categories') { newIdOrder.forEach((id, index) => { if (newData[id]) newData[id].order = index; }); } 
-            else if (currentView.level === 'subcategories' && currentView.categoryId) { const subcategories = newData[currentVew.categoryId].subcategories; newIdOrder.forEach((id, index) => { if (subcategories[id]) subcategories[id].order = index; }); }
+            if (currentView.level === 'categories') { 
+                newIdOrder.forEach((id, index) => { if (newData[id]) newData[id].order = index; }); 
+            } 
+            else if (currentView.level === 'subcategories' && currentView.categoryId) { 
+                const subcategories = newData[currentView.categoryId].subcategories; 
+                newIdOrder.forEach((id, index) => { if (subcategories[id]) subcategories[id].order = index; }); 
+            }
             updateFirestore(newData).then(() => { showToast('Ordem salva com sucesso!', 'success'); });
         }
 
