@@ -125,31 +125,28 @@
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         
-        // Variáveis de estado
         let selectedFile = null;
         let fileToDelete = null;
 
         // --- Funções ---
 
         function addDeleteListeners() {
-            console.log("Adicionando listeners aos botões de exclusão.");
             document.querySelectorAll('.delete-btn').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const fileName = e.currentTarget.dataset.name;
-                    console.log(`Botão de exclusão clicado para o arquivo: ${fileName}`);
                     showDeleteConfirmModal(fileName);
                 });
             });
         }
 
         async function listFiles() {
-            console.log("Iniciando listagem de arquivos...");
+            console.log("Iniciando listagem de arquivos da pasta 'pdfs/'...");
             fileListEl.innerHTML = '<p class="text-gray-500">Carregando arquivos...</p>';
             const listRef = ref(storage, 'pdfs/');
 
             try {
                 const res = await listAll(listRef);
-                console.log(`Encontrados ${res.items.length} arquivos.`);
+                console.log(`Sucesso! Encontrados ${res.items.length} arquivos.`);
                 
                 if (res.items.length === 0) {
                     fileListEl.innerHTML = '<p class="text-gray-500">Nenhum arquivo encontrado.</p>';
@@ -173,13 +170,16 @@
                 const fileElements = await Promise.all(filePromises);
                 fileListEl.innerHTML = fileElements.join('');
                 addDeleteListeners();
-                console.log("Lista de arquivos renderizada no HTML.");
 
             } catch (error) {
                 console.error("ERRO CRÍTICO ao listar arquivos:", error);
-                statusEl.textContent = 'Erro ao carregar a lista de arquivos.';
+                let userMessage = 'Não foi possível carregar os arquivos.';
+                if (error.code === 'storage/unauthorized') {
+                    userMessage = 'Erro de permissão ao listar. Verifique as Regras de Segurança do Storage.';
+                }
+                statusEl.textContent = userMessage;
                 statusEl.className = 'text-center text-sm font-medium text-red-500';
-                fileListEl.innerHTML = '<p class="text-red-500">Não foi possível carregar os arquivos. Verifique o console (F12).</p>';
+                fileListEl.innerHTML = `<p class="text-red-500">${userMessage} Verifique o console (F12).</p>`;
             }
         }
 
@@ -202,14 +202,12 @@
         }
 
         function showDeleteConfirmModal(fileName) {
-            console.log("Mostrando modal de confirmação de exclusão.");
             fileToDelete = fileName;
             fileNameToDeleteEl.textContent = fileName;
             deleteModal.classList.remove('hidden');
         }
 
         function hideDeleteConfirmModal() {
-            console.log("Escondendo modal de confirmação.");
             fileToDelete = null;
             deleteModal.classList.add('hidden');
         }
@@ -217,30 +215,21 @@
         // --- Event Listeners ---
 
         selectFileBtn.addEventListener('click', () => {
-            console.log("Botão 'Selecionar PDF' clicado. Abrindo seletor de arquivo.");
             fileInput.click();
         });
 
         fileInput.addEventListener('change', (e) => {
             selectedFile = e.target.files[0];
             if (selectedFile) {
-                console.log("Arquivo selecionado:", selectedFile);
                 fileNameEl.textContent = `Arquivo: ${selectedFile.name}`;
                 uploadBtn.disabled = false;
                 statusEl.textContent = '';
-            } else {
-                console.log("Seleção de arquivo cancelada.");
             }
         });
 
         uploadBtn.addEventListener('click', () => {
-            console.log("Botão 'Enviar Arquivo' clicado.");
-            if (!selectedFile) {
-                console.warn("Tentativa de upload sem arquivo selecionado.");
-                return;
-            }
+            if (!selectedFile) return;
 
-            console.log(`Iniciando upload de: ${selectedFile.name}`);
             const storageRef = ref(storage, `pdfs/${selectedFile.name}`);
             const uploadTask = uploadBytesResumable(storageRef, selectedFile);
 
@@ -250,23 +239,28 @@
             uploadTask.on('state_changed', 
                 (snapshot) => {
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
                     progressWrapper.classList.remove('hidden');
                     progressBar.style.width = progress + '%';
                     statusEl.textContent = `Enviando... ${Math.round(progress)}%`;
                     statusEl.className = 'text-center text-sm font-medium text-indigo-600';
                 }, 
                 (error) => {
-                    console.error("ERRO NO UPLOAD:", error);
-                    console.error("Código do Erro:", error.code);
-                    console.error("Mensagem do Erro:", error.message);
+                    // DIAGNÓSTICO DE ERRO MELHORADO
+                    console.error("<<<<< ERRO NO UPLOAD >>>>>", error);
+                    console.error("CÓDIGO DO ERRO:", error.code);
+                    console.error("MENSAGEM DO ERRO:", error.message);
+                    
                     let errorMessage = 'Ocorreu um erro durante o upload.';
                     if (error.code === 'storage/unauthorized') {
-                        errorMessage = 'Erro de permissão: Verifique as regras de segurança do seu Storage.';
-                        console.error("DICA: As regras do Firebase Storage não permitem a escrita. Vá ao console do Firebase > Storage > Regras e ajuste as permissões.");
+                        errorMessage = 'ERRO DE PERMISSÃO. Verifique as Regras de Segurança do Storage.';
+                        console.error("DICA: As regras do Firebase Storage não permitem a escrita. Vá ao console do Firebase > Storage > Regras e ajuste as permissões para 'allow write: if true;'.");
                     } else if (error.code === 'storage/canceled') {
                         errorMessage = 'Upload cancelado.';
+                    } else if (error.code === 'storage/unknown') {
+                        errorMessage = 'ERRO DESCONHECIDO. Pode ser um problema de CORS. Verifique a configuração no Google Cloud.';
+                         console.error("DICA: O erro pode ser de CORS. Verifique se a configuração foi aplicada corretamente no Google Cloud Shell.");
                     }
+
                     statusEl.textContent = errorMessage;
                     statusEl.className = 'text-center text-sm font-medium text-red-500';
                     
@@ -277,7 +271,6 @@
                 () => {
                     console.log("UPLOAD CONCLUÍDO COM SUCESSO.");
                     getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
-                        console.log('Arquivo disponível em:', downloadURL);
                         statusEl.textContent = 'Upload concluído com sucesso!';
                         statusEl.className = 'text-center text-sm font-medium text-green-500';
                         
@@ -291,7 +284,6 @@
                            }
                         }, 4000);
 
-                        console.log("Atualizando a lista de arquivos após o upload.");
                         await listFiles();
                     });
                     selectFileBtn.disabled = false;
@@ -302,7 +294,6 @@
         cancelDeleteBtn.addEventListener('click', hideDeleteConfirmModal);
 
         confirmDeleteBtn.addEventListener('click', () => {
-            console.log("Botão 'Sim, Excluir' clicado.");
             if (fileToDelete) {
                 deleteFile(fileToDelete);
             }
@@ -310,7 +301,6 @@
         });
 
         window.onload = () => {
-            console.log("Página carregada. Chamando listFiles() pela primeira vez.");
             listFiles();
         };
 
