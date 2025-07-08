@@ -1,1311 +1,318 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E PROJECTS - Portal de Normas Técnicas</title>
-
-    <!-- Tailwind CSS -->
+    <title>Upload de PDF com Firebase Storage</title>
+    <!-- Tailwind CSS para estilização -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-
-    <!-- Google Fonts: Inter -->
+    <!-- Fonte Inter do Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- SortableJS for drag-and-drop -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-
-
     <style>
-        /* Custom styles inspired by the logo */
-        :root {
-            --primary-orange: #f97316; /* Tailwind orange-500 */
-            --dark-bg: #111827; /* Tailwind gray-900 */
-            --dark-card: #1f2937; /* Tailwind gray-800 */
-            --light-text: #f3f4f6; /* Tailwind gray-200 */
-        }
-        
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--dark-bg);
-            color: var(--light-text);
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
         }
-
-        /* Custom scrollbar for a modern look */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1f2937;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #4b5563;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--primary-orange);
-        }
-
-        /* Modal animation classes */
-        .modal-backdrop {
-            transition: opacity 0.3s ease-in-out;
-        }
-        .modal-content {
-            transition: transform 0.3s ease-in-out;
-        }
-
-        /* Enhanced card hover effect with orange glow */
-        .card-hover-effect {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .card-hover-effect:hover:not(.sortable-chosen) {
-            transform: translateY(-5px);
-            box-shadow: 0 0 25px -5px rgba(249, 115, 22, 0.4);
-        }
-        
-        /* Filter menu animation */
-        .filter-menu-transition {
-             transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
-        }
-        
-        /* Toast Notification */
-        #toast-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 100;
-        }
-        .toast {
-            transition: opacity 0.3s, transform 0.3s;
-            transform: translateY(20px);
-            opacity: 0;
-        }
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-        
-        /* SortableJS styles */
-        .sortable-ghost {
-            opacity: 0.4;
-            background-color: #4f46e5;
-        }
-        .drag-handle {
-            cursor: move;
+        /* Garante que o ícone do botão não seja clicável separadamente */
+        .delete-btn svg {
+            pointer-events: none;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200">
+<body class="bg-gray-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
 
-    <div id="app-container" class="min-h-screen flex flex-col">
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 space-y-6">
         
-        <!-- Header with Logo -->
-        <header class="bg-gray-800/80 backdrop-blur-sm shadow-lg shadow-black/20 sticky top-0 z-40">
-            <div class="container mx-auto px-4 py-2">
-                <div class="flex flex-col md:flex-row justify-between items-center gap-2">
-                    <div class="flex items-center">
-                         <img src="https://i.imgur.com/EDw5HWL.png" alt="Logotipo da E Projects Normas" class="h-16" onerror="this.style.display='none'">
-                    </div>
-                    <button id="admin-login-button" title="Acesso Administrador" class="p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-all duration-300">
-                        <i class="fas fa-user-shield"></i>
-                    </button>
-                </div>
+        <!-- Cabeçalho -->
+        <div class="text-center">
+            <h1 class="text-3xl font-bold text-gray-900">Armazenamento de Arquivos PDF</h1>
+            <p class="text-gray-500 mt-2">Faça o upload e gerencie seus documentos PDF.</p>
+        </div>
 
-                <!-- Search and Filter Bar -->
-                <div class="mt-4 flex gap-2 md:gap-4 items-center">
-                    <div class="relative flex-grow">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-4">
-                            <i class="fas fa-search text-gray-400"></i>
-                        </span>
-                        <input type="search" id="search-input" placeholder="Buscar por número, título ou descrição..." class="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                    </div>
-                    <div class="relative">
-                        <button id="filter-menu-button" class="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-5 rounded-lg flex items-center gap-2 transition-colors">
-                            <i class="fas fa-filter"></i>
-                            <span>Filtros</span>
-                            <span id="filter-indicator" class="hidden w-2 h-2 bg-orange-500 rounded-full"></span>
-                        </button>
-                        <div id="filter-menu" class="hidden absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-4 transform origin-top-right filter-menu-transition">
-                            <p class="text-sm font-bold text-gray-300 mb-2">Filtrar por Tipo</p>
-                            <select id="filter-select" class="w-full py-2 px-3 rounded-lg border border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 mb-4">
-                                <option value="all">Todos os Tipos</option>
-                            </select>
-                            <button id="list-all-button" class="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-500 transition-colors flex items-center justify-center gap-2">
-                                <i class="fas fa-list-ul"></i>
-                                <span>Ver Lista Completa</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
+        <!-- Seção de Upload -->
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+            <input type="file" id="fileInput" accept=".pdf" class="hidden">
+            <button id="selectFileBtn" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">
+                Selecionar PDF
+            </button>
+            <p id="fileName" class="mt-4 text-sm text-gray-600">Nenhum arquivo selecionado.</p>
+        </div>
 
-        <!-- Main Content -->
-        <main class="flex-grow container mx-auto px-4 py-8">
-            <div id="breadcrumbs" class="mb-6 flex items-center gap-2 text-sm text-gray-400"></div>
+        <!-- Botão de Upload e Progresso -->
+        <div class="space-y-2">
+            <button id="uploadBtn" class="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                Enviar Arquivo
+            </button>
+            <div id="progress-wrapper" class="w-full bg-gray-200 rounded-full h-2.5 hidden">
+                <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="status" class="text-center text-sm font-medium h-5"></p>
+        </div>
 
-            <div id="admin-add-buttons" class="hidden mb-6 flex flex-wrap gap-4">
-                 <button id="add-category-btn" class="bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2">
-                    <i class="fas fa-plus-circle"></i> Nova Categoria
-                </button>
-                <button id="add-subcategory-btn" class="hidden bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-                    <i class="fas fa-plus-circle"></i> Nova Subcategoria
-                </button>
-                 <button id="add-standard-btn" class="hidden bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2">
-                    <i class="fas fa-plus-circle"></i> Nova Norma
-                </button>
-                <button id="toggle-sort-mode-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2">
-                    <i class="fas fa-sort"></i> Ordenar
-                </button>
-                <!-- NEW BUTTON FOR ADDING ADMIN -->
-                <button id="add-admin-btn" class="bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2">
-                    <i class="fas fa-user-plus"></i> Novo Admin
-                </button>
+        <!-- Lista de Arquivos Enviados -->
+        <div class="space-y-4">
+            <h2 class="text-xl font-semibold border-b pb-2">Arquivos Armazenados</h2>
+            <div id="fileList" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                <p class="text-gray-500">Nenhum arquivo encontrado ainda. Faça um upload para começar.</p>
             </div>
-            
-            <div id="content-area" class="transition-opacity duration-500">
-                <div id="loading" class="text-center py-16">
-                    <i class="fas fa-spinner fa-spin fa-3x text-orange-500"></i>
-                    <p class="mt-4 text-lg">Carregando dados...</p>
-                </div>
-            </div>
-        </main>
+        </div>
     </div>
 
-    <!-- Modals -->
-    <div id="modal-container"></div>
-    
-    <!-- Toast Notifications -->
-    <div id="toast-container"></div>
-
-    <!-- Firebase SDK -->
-    <script type="module">
-        /*
-        ================================================================================
-        ATENÇÃO: AÇÃO MANUAL NECESSÁRIA PARA O FUNCIONAMENTO
-        ================================================================================
-        Este aplicativo requer duas configurações manuais no seu painel do Firebase/Google Cloud:
-        
-        1. REGRAS DE SEGURANÇA: Permitem que o app acesse o banco de dados e o storage.
-           - Vá para o seu projeto no Firebase > Firestore Database > Rules
-           - Vá para o seu projeto no Firebase > Storage > Rules
-           - Cole as regras recomendadas na documentação ou em respostas anteriores.
-
-        2. CORS (Cross-Origin Resource Sharing) NO BUCKET DE STORAGE:
-           - ESTE É O PASSO CRÍTICO PARA O UPLOAD DE ARQUIVOS FUNCIONAR A PARTIR DO SEU SITE.
-           - O seu site `https://elidiopeirao.github.io` precisa de permissão para enviar arquivos ao Google Storage.
-           
-           - **COMO RESOLVER (MÉTODO RECOMENDADO):**
-           a. Instale a ferramenta de linha de comando `gcloud` do Google Cloud.
-           b. Crie um arquivo no seu computador chamado `cors-config.json`.
-              **IMPORTANTE:** O erro `ERROR: 'str' object has no attribute 'items'` que você encontrou indica um problema no formato deste arquivo. Use o conteúdo simplificado abaixo, garantindo que não há caracteres extras.
-
-              ```json
-              [
-                {
-                  "origin": ["[https://elidiopeirao.github.io](https://elidiopeirao.github.io)"],
-                  "method": ["GET", "PUT", "POST"],
-                  "responseHeader": ["Content-Type"],
-                  "maxAgeSeconds": 3600
-                }
-              ]
-              ```
-           c. Abra o terminal, faça login (`gcloud auth login`), configure seu projeto (`gcloud config set project eprojectsnorma`) e execute o comando:
-           
-              gcloud storage buckets update gs://eprojectsnorma.appspot.com --cors-file=cors-config.json
-              
-           - **ALTERNATIVA RÁPIDA (MENOS SEGURA):** Se o passo acima falhar, você pode permitir *qualquer* site usando o seguinte conteúdo no `cors-config.json`:
-              
-              ```json
-              [
-                {
-                  "origin": ["*"],
-                  "method": ["GET", "PUT", "POST"],
-                  "responseHeader": ["Content-Type"],
-                  "maxAgeSeconds": 3600
-                }
-              ]
-              ```
-        ================================================================================
-        */
-        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
-
-        // --- CONFIGURATION ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyBnjU-N1TbdKWLIlw2m_8EqhVzkC-A1GKA",
-            authDomain: "eprojectsnorma.firebaseapp.com",
-            projectId: "eprojectsnorma",
-            storageBucket: "eprojectsnorma.appspot.com",
-            messagingSenderId: "60523784309",
-            appId: "1:60523784309:web:33721e9bf387e2240a703c",
-            measurementId: "G-7VLXQV6GM5"
-        };
-        
-        // Chave secreta para configurar o primeiro administrador.
-        const SETUP_KEY = "mestre-admin-2024";
-
-        // --- GLOBAL STATE ---
-        let db, auth, storage;
-        let data = {};
-        let isAdmin = false;
-        let isInitialSetupNeeded = false;
-        let isSortMode = false;
-        let sortableInstance = null;
-        let currentView = { level: 'categories', categoryId: null, subcategoryId: null };
-        let dataDocRef;
-        let configDocRef;
-
-        // --- DOM ELEMENTS ---
-        const contentArea = document.getElementById('content-area');
-        const loadingIndicator = document.getElementById('loading');
-        const breadcrumbs = document.getElementById('breadcrumbs');
-        const searchInput = document.getElementById('search-input');
-        const filterMenuButton = document.getElementById('filter-menu-button');
-        const filterMenu = document.getElementById('filter-menu');
-        const filterIndicator = document.getElementById('filter-indicator');
-        const filterSelect = document.getElementById('filter-select');
-        const listAllButton = document.getElementById('list-all-button');
-        const adminLoginButton = document.getElementById('admin-login-button');
-        const adminAddButtons = document.getElementById('admin-add-buttons');
-        const addCategoryBtn = document.getElementById('add-category-btn');
-        const addSubcategoryBtn = document.getElementById('add-subcategory-btn');
-        const addStandardBtn = document.getElementById('add-standard-btn');
-        const toggleSortModeBtn = document.getElementById('toggle-sort-mode-btn');
-        const addAdminBtn = document.getElementById('add-admin-btn');
-
-        // --- INITIAL DATA (SEED) ---
-        const getInitialData = () => ({
-            "mecanica": { name: "Mecânica", icon: "fas fa-cogs", order: 0, subcategories: { "desenho-tecnico": { name: "Desenho Técnico", icon: "fas fa-drafting-compass", order: 0, standards: [ { id: `std-${Date.now() + 1}`, type: "ABNT", number: "NBR 16752", title: "Desenho técnico — Requisitos para apresentação em folhas de desenho", description: "Especifica os requisitos para a apresentação da folha de desenho técnico.", pdfUrl: "#", pdfPath: "", isHidden: false }, { id: `std-${Date.now() + 2}`, type: "ISO", number: "ISO 128-1", title: "Technical drawings — General principles of presentation", description: "General principles of presentation to be applied to technical drawings.", pdfUrl: "#", pdfPath: "", isHidden: false }, ] } } },
-            "eletrica": { name: "Elétrica", icon: "fas fa-bolt", order: 1, subcategories: { "baixa-tensao": { name: "Instalações de Baixa Tensão", icon: "fas fa-plug", order: 0, standards: [ { id: `std-${Date.now() + 3}`, type: "ABNT", number: "NBR 5410", title: "Instalações elétricas de baixa tensão", description: "Estabelece as condições a que devem satisfazer as instalações elétricas de baixa tensão.", pdfUrl: "#", pdfPath: "", isHidden: false }, { id: `std-${Date.now() + 4}`, type: "NR", number: "NR 10", title: "Segurança em Instalações e Serviços em Eletricidade", description: "Estabelece os requisitos e condições mínimas para a implementação de medidas de controle e sistemas preventivos.", pdfUrl: "#", pdfPath: "", isHidden: true }, ] } } },
-            "seguranca": { name: "Segurança do Trabalho", icon: "fas fa-hard-hat", order: 2, subcategories: { "epis": { name: "Equipamentos de Proteção", icon: "fas fa-shield-alt", order: 0, standards: [ { id: `std-${Date.now() + 5}`, type: "NR", number: "NR 06", title: "Equipamento de Proteção Individual - EPI", description: "Define as responsabilidades do empregador e do empregado quanto ao EPI.", pdfUrl: "#", pdfPath: "", isHidden: false }, ] } } }
-        });
-
-        // --- FIREBASE INITIALIZATION & AUTH ---
-        async function initializeAppAndAuth() {
-            console.log("[ETAPA] Iniciando a aplicação e autenticação...");
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                storage = getStorage(app);
-                
-                dataDocRef = doc(db, "portal_normas", "data");
-                configDocRef = doc(db, "portal_normas", "config");
-
-                const configSnap = await getDoc(configDocRef);
-                isInitialSetupNeeded = !configSnap.exists();
-                console.log(`[ETAPA] Necessita de configuração inicial: ${isInitialSetupNeeded}`);
-
-                onAuthStateChanged(auth, async (user) => {
-                    console.log("[ETAPA] Estado de autenticação mudou. Verificando usuário.");
-                    if (user && !user.isAnonymous) {
-                        await checkAdminStatus(user);
-                    } else {
-                        isAdmin = false;
-                        updateAdminUI();
-                    }
-                    setupSnapshotListener(); 
-                });
-
-                if (!auth.currentUser) {
-                    console.log("[ETAPA] Nenhum usuário logado. Realizando login anônimo.");
-                    await signInAnonymously(auth).catch(err => {
-                        console.error("[ERRO] Login anônimo falhou. Verifique se está habilitado no Firebase.", err);
-                        displayAuthError();
-                    });
-                }
-                console.log("[ETAPA] Inicialização e autenticação concluídas com sucesso.");
-            } catch (error) {
-                console.error("[ERRO] Falha na inicialização do Firebase.", error);
-                displayAuthError();
-            }
-        }
-        
-        function displayAuthError() {
-            loadingIndicator.style.display = 'none';
-            contentArea.innerHTML = `
-                <div class="bg-red-900/50 border-l-4 border-red-500 text-red-300 p-4" role="alert">
-                    <p class="font-bold">Erro Crítico de Conexão</p>
-                    <p>Não foi possível conectar ou autenticar com o Firebase.</p>
-                    <p class="mt-2 text-sm">Verifique se o método de login anônimo está habilitado no seu painel do Firebase.</p>
+    <!-- Modal de Confirmação de Exclusão -->
+    <div id="deleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 flex items-center justify-center">
+        <div class="relative mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
                 </div>
-            `;
-        }
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">Excluir Arquivo</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500">
+                        Você tem certeza que deseja excluir o arquivo <strong id="fileNameToDelete" class="break-all"></strong>? Essa ação não pode ser desfeita.
+                    </p>
+                </div>
+                <div class="items-center px-4 py-3 space-x-2">
+                    <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-auto shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
+                        Sim, Excluir
+                    </button>
+                    <button id="cancelDeleteBtn" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-auto shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Módulos do Firebase -->
+    <script type="module">
+        // Importando funções do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getStorage, ref, uploadBytesResumable, getDownloadURL, listAll, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+        console.log("--- SCRIPT INICIADO ---");
+
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVbVb63GcqMku0lLI7eumUuyYvHs-I9QA",
+            authDomain: "esp32-313b3.firebaseapp.com",
+            projectId: "esp32-313b3",
+            storageBucket: "esp32-313b3.appspot.com",
+            messagingSenderId: "648896734385",
+            appId: "1:648896734385:web:311d757d4c55fcf5ef6e90",
+            measurementId: "G-S3GDK17C8L"
+        };
+
+        // Inicialização do Firebase
+        console.log("Inicializando Firebase...");
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+        console.log("Firebase inicializado com sucesso.");
+
+        // Referências aos elementos do DOM
+        const fileInput = document.getElementById('fileInput');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileNameEl = document.getElementById('fileName');
+        const statusEl = document.getElementById('status');
+        const progressWrapper = document.getElementById('progress-wrapper');
+        const progressBar = document.getElementById('progress-bar');
+        const fileListEl = document.getElementById('fileList');
+        const deleteModal = document.getElementById('deleteModal');
+        const fileNameToDeleteEl = document.getElementById('fileNameToDelete');
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         
-        async function checkAdminStatus(user) {
-            console.log(`[ETAPA] Verificando status de administrador para o usuário: ${user.uid}`);
-            if (user.isAnonymous) {
-                isAdmin = false;
-            } else {
-                const configSnap = await getDoc(configDocRef);
-                if (configSnap.exists()) {
-                    const adminUIDs = configSnap.data().admins || [];
-                    isAdmin = adminUIDs.includes(user.uid);
-                } else {
-                    isAdmin = false;
-                }
-            }
-            console.log(`[ETAPA] Status de administrador definido para: ${isAdmin}`);
-            updateAdminUI();
-        }
+        // Variáveis de estado
+        let selectedFile = null;
+        let fileToDelete = null;
 
-        function updateAdminUI() {
-            if (isAdmin) {
-                adminLoginButton.classList.add('text-green-500');
-                adminLoginButton.title = `Logado como Admin (${auth.currentUser.email}). Sair?`;
-            } else {
-                adminLoginButton.classList.remove('text-green-500');
-                adminLoginButton.title = "Acesso Administrador";
-            }
-            if (isSortMode && !isAdmin) {
-                handleSortToggle();
-            }
-            render();
-        }
+        // --- Funções ---
 
-        // --- REAL-TIME DATA LISTENER ---
-        function setupSnapshotListener() {
-            console.log("[ETAPA] Configurando o listener de dados em tempo real (onSnapshot)...");
-            if (typeof window.unsubscribe === 'function') {
-                window.unsubscribe();
-            }
-            window.unsubscribe = onSnapshot(dataDocRef, (docSnap) => {
-                console.log("[ETAPA] Dados recebidos do Firestore. Re-renderizando a visualização.");
-                loadingIndicator.style.display = 'none';
-                if (docSnap.exists()) {
-                    data = docSnap.data().data || {};
-                } else if (isAdmin) {
-                    seedDatabase();
-                }
-                updateFilterOptions();
-                render();
-            }, (error) => {
-                console.error("[ERRO] Falha ao escutar dados do Firestore.", error);
-                loadingIndicator.style.display = 'none';
-                contentArea.innerHTML = `<p class="text-red-400 text-center">Não foi possível carregar os dados. Verifique as regras de segurança do Firestore.</p>`;
+        function addDeleteListeners() {
+            console.log("Adicionando listeners aos botões de exclusão.");
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const fileName = e.currentTarget.dataset.name;
+                    console.log(`Botão de exclusão clicado para o arquivo: ${fileName}`);
+                    showDeleteConfirmModal(fileName);
+                });
             });
         }
 
-        // --- DATABASE OPERATIONS ---
-        async function updateFirestore(newData) {
-            console.log("[ETAPA] Tentando atualizar dados no Firestore...");
-            if (!isAdmin) {
-                showToast("Ação não permitida.", "error");
-                console.warn("[AVISO] Tentativa de escrita no Firestore por usuário não-admin foi bloqueada.");
-                return;
-            }
-            try {
-                await setDoc(dataDocRef, { data: newData });
-                console.log("[ETAPA] Dados atualizados no Firestore com sucesso.");
-            } catch (error) {
-                console.error("[ERRO] Falha ao atualizar o Firestore:", error);
-                if (error.code === 'permission-denied') {
-                    showToast("Erro de Permissão. Verifique as Regras de Segurança do Firestore.", "error");
-                } else {
-                    showToast("Ocorreu um erro ao salvar no banco de dados.", "error");
-                }
-            }
-        }
+        async function listFiles() {
+            console.log("Iniciando listagem de arquivos...");
+            fileListEl.innerHTML = '<p class="text-gray-500">Carregando arquivos...</p>';
+            const listRef = ref(storage, 'pdfs/');
 
-        async function seedDatabase() {
-            console.log("[ETAPA] Nenhum dado encontrado. Semeando o banco de dados com dados iniciais.");
-            const initialData = getInitialData();
-            await updateFirestore(initialData);
-            showToast("Banco de dados inicializado com dados de exemplo.", "info");
-        }
-        
-        async function deleteFolderContents(path) {
-            const listRef = ref(storage, path);
-            console.log(`[STORAGE] Iniciando exclusão de arquivos em: ${path}`);
             try {
                 const res = await listAll(listRef);
+                console.log(`Encontrados ${res.items.length} arquivos.`);
                 
-                const deleteFilePromises = res.items.map((itemRef) => {
-                    console.log(`[STORAGE] Agendando exclusão do arquivo: ${itemRef.fullPath}`);
-                    return deleteObject(itemRef);
+                if (res.items.length === 0) {
+                    fileListEl.innerHTML = '<p class="text-gray-500">Nenhum arquivo encontrado.</p>';
+                    return;
+                }
+
+                const filePromises = res.items.map(async (itemRef) => {
+                    const url = await getDownloadURL(itemRef);
+                    return `
+                        <div class="flex items-center justify-between bg-gray-100 p-3 rounded-lg hover:bg-gray-200 transition-colors group">
+                            <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 font-medium truncate pr-4 flex-1">${itemRef.name}</a>
+                            <button data-name="${itemRef.name}" class="delete-btn text-gray-400 hover:text-red-600 p-1 rounded-full opacity-50 group-hover:opacity-100 transition-opacity">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                   <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    `;
                 });
-                await Promise.all(deleteFilePromises);
-                
-                const deleteFolderPromises = res.prefixes.map((folderRef) => {
-                     console.log(`[STORAGE] Entrando na subpasta para exclusão: ${folderRef.fullPath}`);
-                    return deleteFolderContents(folderRef.fullPath);
-                });
-                await Promise.all(deleteFolderPromises);
-                
-                console.log(`[STORAGE] Conteúdo de ${path} excluído com sucesso.`);
+
+                const fileElements = await Promise.all(filePromises);
+                fileListEl.innerHTML = fileElements.join('');
+                addDeleteListeners();
+                console.log("Lista de arquivos renderizada no HTML.");
+
             } catch (error) {
-                console.error(`[ERRO] Falha ao listar ou excluir conteúdo da pasta ${path}`, error);
-                showToast(`Erro ao limpar arquivos da pasta ${path}.`, 'error');
+                console.error("ERRO CRÍTICO ao listar arquivos:", error);
+                statusEl.textContent = 'Erro ao carregar a lista de arquivos.';
+                statusEl.className = 'text-center text-sm font-medium text-red-500';
+                fileListEl.innerHTML = '<p class="text-red-500">Não foi possível carregar os arquivos. Verifique o console (F12).</p>';
             }
         }
 
-        // --- EVENT HANDLERS ---
-        adminLoginButton.addEventListener('click', () => {
-             if (isAdmin) {
-                 console.log("[ETAPA] Usuário admin clicou para sair.");
-                 signOut(auth).then(() => {
-                     showToast('Sessão de administrador encerrada.', 'info');
-                 });
-             } else {
-                 console.log("[ETAPA] Usuário clicou para fazer login de admin.");
-                 showAdminLoginModal();
-             }
-        });
-
-        addAdminBtn.addEventListener('click', () => {
-            if(isAdmin) {
-                console.log("[ETAPA] Admin clicou para adicionar um novo admin.");
-                showCreateAdminModal();
+        async function deleteFile(fileName) {
+            console.log(`Iniciando exclusão do arquivo: ${fileName}`);
+            const fileRef = ref(storage, `pdfs/${fileName}`);
+            statusEl.textContent = `Excluindo ${fileName}...`;
+            statusEl.className = 'text-center text-sm font-medium text-yellow-500';
+            try {
+                await deleteObject(fileRef);
+                console.log("Arquivo excluído com sucesso do Firebase Storage.");
+                statusEl.textContent = `Arquivo "${fileName}" excluído com sucesso.`;
+                statusEl.className = 'text-center text-sm font-medium text-green-500';
+                await listFiles(); 
+            } catch (error) {
+                console.error(`ERRO ao deletar o arquivo ${fileName}:`, error);
+                statusEl.textContent = 'Erro ao deletar o arquivo.';
+                statusEl.className = 'text-center text-sm font-medium text-red-500';
             }
-        });
-        
-        // --- MODAL & FORM LOGIC ---
-        function showCreateAdminModal() {
-            const content = `
-                <form id="create-admin-form" class="space-y-4">
-                    <div>
-                        <label for="new-admin-email" class="block mb-1 font-semibold">Email do Novo Admin</label>
-                        <input type="email" id="new-admin-email" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600" required>
-                    </div>
-                    <div>
-                        <label for="new-admin-password" class="block mb-1 font-semibold">Senha Provisória (mínimo 6 caracteres)</label>
-                        <input type="password" id="new-admin-password" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600" required>
-                    </div>
-                    <button type="submit" class="w-full mt-4 bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 transition-colors">Criar Administrador</button>
-                </form>
-            `;
-
-            const { closeModal } = createModal('Criar Novo Administrador', content, 'create-admin-modal', 'max-w-md');
-
-            document.getElementById('create-admin-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('new-admin-email').value;
-                const password = document.getElementById('new-admin-password').value;
-                const submitButton = e.target.querySelector('button');
-
-                if (!email || password.length < 6) {
-                    showToast("Preencha todos os campos corretamente.", "error");
-                    return;
-                }
-
-                submitButton.disabled = true;
-                submitButton.textContent = 'Criando...';
-                
-                const tempAppName = `create-admin-${Date.now()}`;
-                const tempApp = initializeApp(firebaseConfig, tempAppName);
-                const tempAuth = getAuth(tempApp);
-
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
-                    const newAdminUid = userCredential.user.uid;
-
-                    const configSnap = await getDoc(configDocRef);
-                    const admins = configSnap.exists() ? configSnap.data().admins || [] : [];
-                    if (!admins.includes(newAdminUid)) {
-                        admins.push(newAdminUid);
-                        await setDoc(configDocRef, { admins }, { merge: true });
-                    }
-                    
-                    closeModal();
-                    showToast("Novo administrador criado com sucesso!", "success");
-
-                } catch (error) {
-                    console.error("Failed to create new admin:", error);
-                    if (error.code === 'auth/email-already-in-use') {
-                        showToast('Este email já está em uso.', 'error');
-                    } else {
-                        showToast('Erro ao criar novo admin.', 'error');
-                    }
-                } finally {
-                    await signOut(tempAuth).catch(() => {});
-                    await deleteApp(tempApp).catch(() => {});
-                    
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Criar Administrador';
-                }
-            });
         }
-        
-        function showAdminLoginModal() {
-            let title, content;
 
-            if (isInitialSetupNeeded) {
-                title = 'Configuração do Primeiro Admin';
-                content = `
-                    <div class="my-4 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300 text-sm">
-                        <p class="font-bold">Primeira Configuração Detectada!</p>
-                        <p>Crie a conta do primeiro administrador. Esta ação só pode ser feita uma vez.</p>
-                    </div>
-                    <form id="initial-setup-form" class="space-y-4">
-                        <div>
-                            <label for="email" class="block mb-1 font-semibold">Email do Administrador</label>
-                            <input type="email" id="email" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600" required>
-                        </div>
-                        <div>
-                            <label for="password" class="block mb-1 font-semibold">Senha (mínimo 6 caracteres)</label>
-                            <input type="password" id="password" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600" required>
-                        </div>
-                        <div>
-                            <label for="setup-key" class="block mb-1 font-semibold">Chave de Instalação</label>
-                            <input type="password" id="setup-key" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600 text-white" required>
-                        </div>
-                        <button type="submit" class="w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition-colors">Configurar e Entrar</button>
-                    </form>
-                `;
+        function showDeleteConfirmModal(fileName) {
+            console.log("Mostrando modal de confirmação de exclusão.");
+            fileToDelete = fileName;
+            fileNameToDeleteEl.textContent = fileName;
+            deleteModal.classList.remove('hidden');
+        }
+
+        function hideDeleteConfirmModal() {
+            console.log("Escondendo modal de confirmação.");
+            fileToDelete = null;
+            deleteModal.classList.add('hidden');
+        }
+
+        // --- Event Listeners ---
+
+        selectFileBtn.addEventListener('click', () => {
+            console.log("Botão 'Selecionar PDF' clicado. Abrindo seletor de arquivo.");
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                console.log("Arquivo selecionado:", selectedFile);
+                fileNameEl.textContent = `Arquivo: ${selectedFile.name}`;
+                uploadBtn.disabled = false;
+                statusEl.textContent = '';
             } else {
-                title = 'Acesso Restrito';
-                content = `
-                    <form id="admin-login-form" class="space-y-4">
-                        <div>
-                            <label for="email" class="block mb-1 font-semibold">Email</label>
-                            <input type="email" id="email" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600" required>
-                        </div>
-                        <div>
-                            <label for="password" class="block mb-1 font-semibold">Senha</label>
-                            <input type="password" id="password" class="w-full p-2 border rounded-lg bg-gray-700 border-gray-600" required>
-                        </div>
-                        <button type="submit" class="w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700">Entrar</button>
-                    </form>
-                `;
+                console.log("Seleção de arquivo cancelada.");
             }
-
-            const { closeModal } = createModal(title, content, 'admin-login-modal', 'max-w-sm');
-
-            if (isInitialSetupNeeded) {
-                document.getElementById('initial-setup-form').addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const email = document.getElementById('email').value;
-                    const password = document.getElementById('password').value;
-                    const setupKey = document.getElementById('setup-key').value;
-
-                    if (!email || password.length < 6 || !setupKey) {
-                        showToast("Por favor, preencha todos os campos.", "error"); return;
-                    }
-                    if (setupKey !== SETUP_KEY) {
-                        showToast("Chave de Instalação incorreta.", "error"); return;
-                    }
-
-                    try {
-                        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                        await setDoc(configDocRef, { admins: [userCredential.user.uid] });
-                        
-                        isInitialSetupNeeded = false;
-                        showToast("Administrador configurado com sucesso!", "success");
-                        closeModal();
-                    } catch (error) {
-                        console.error(`Initial setup failed:`, error);
-                        if (error.code === 'auth/email-already-in-use') {
-                            showToast('Este email já existe. Tente fazer login.', 'error');
-                        } else {
-                            showToast('Ocorreu um erro ao criar a conta.', 'error');
-                        }
-                    }
-                });
-            } else {
-                document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const email = document.getElementById('email').value;
-                    const password = document.getElementById('password').value;
-
-                    if (!email || !password) {
-                        showToast("Por favor, preencha email e senha.", "error"); return;
-                    }
-
-                    try {
-                        await signInWithEmailAndPassword(auth, email, password);
-                        closeModal();
-                    } catch (error) {
-                        console.error(`Login failed:`, error);
-                        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-                            showToast('Email ou senha inválidos.', 'error');
-                        } else {
-                            showToast('Ocorreu um erro ao tentar entrar.', 'error');
-                        }
-                    }
-                });
-            }
-        }
-        
-        function render() {
-            console.log(`[ETAPA] Renderização acionada. Visualização atual: ${currentView.level}`, currentView);
-            if (!contentArea) return;
-            contentArea.style.opacity = '0';
-            setTimeout(() => {
-                const searchTerm = searchInput.value.toLowerCase();
-                const filterType = filterSelect.value;
-                
-                if (isSortMode) {
-                    toggleSortModeBtn.innerHTML = '<i class="fas fa-save"></i> Salvar Ordem';
-                    toggleSortModeBtn.classList.replace('bg-indigo-600', 'bg-green-600');
-                    toggleSortModeBtn.classList.replace('hover:bg-indigo-700', 'hover:bg-green-700');
-                } else {
-                    toggleSortModeBtn.innerHTML = '<i class="fas fa-sort"></i> Ordenar';
-                    toggleSortModeBtn.classList.replace('bg-green-600', 'bg-indigo-600');
-                    toggleSortModeBtn.classList.replace('hover:bg-green-700', 'hover:bg-indigo-700');
-                }
-                
-                if (searchTerm || (filterType !== 'all' && currentView.level !== 'categories' && currentView.level !== 'subcategories')) {
-                     renderSearchResults(searchTerm, filterType);
-                } else {
-                    switch (currentView.level) {
-                        case 'categories': renderCategories(); break;
-                        case 'subcategories': renderSubcategories(currentView.categoryId); break;
-                        case 'standards': renderStandardsList(currentView.categoryId, currentView.subcategoryId); break;
-                        case 'all-standards': renderAllStandardsList(); break;
-                        case 'search-results': renderSearchResults(searchTerm, filterType); break;
-                        default: renderCategories();
-                    }
-                }
-                
-                if (isSortMode) setupSortable();
-
-                updateBreadcrumbs();
-                updateAdminButtonsVisibility();
-                contentArea.style.opacity = '1';
-            }, 200);
-        }
-        
-        function getSortedArray(object) {
-            if (!object) return [];
-            return Object.entries(object).sort(([,a], [,b]) => (a.order || 0) - (b.order || 0));
-        }
-        
-        function renderCategories() {
-            let html = '<div id="sortable-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">';
-            if (Object.keys(data).length === 0) {
-                 html += `<p class="col-span-full text-center text-gray-400">${isAdmin ? 'Nenhuma categoria encontrada. Adicione uma para começar.' : 'Nenhuma categoria encontrada.'}</p>`;
-            } else {
-                const sortedCategories = getSortedArray(data);
-                for (const [id, category] of sortedCategories) {
-                    html += `
-                        <div class="relative bg-gray-800 rounded-lg shadow-lg overflow-hidden card-hover-effect flex flex-col" data-id="${id}" data-action="view-category">
-                              ${isSortMode ? '<div class="drag-handle p-2 text-gray-500 absolute top-2 left-2 cursor-move"><i class="fas fa-grip-vertical"></i></div>' : ''}
-                              <div class="p-8 text-center flex-grow flex flex-col items-center justify-center">
-                                  <i class="${category.icon} fa-3x text-orange-400 mb-5"></i>
-                                  <h3 class="text-xl font-bold text-white">${category.name}</h3>
-                              </div>
-                              ${!isSortMode ? renderAdminControls('category', id) : ''}
-                        </div>
-                    `;
-                }
-            }
-            html += '</div>';
-            contentArea.innerHTML = html;
-        }
-
-        function renderSubcategories(categoryId) {
-            const category = data[categoryId];
-            if (!category) { render(); return; }
-            let html = `<div id="sortable-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">`;
-            if (Object.keys(category.subcategories || {}).length === 0) {
-                 html += `<p class="col-span-full text-center text-gray-400">${isAdmin ? 'Nenhuma subcategoria. Adicione uma.' : 'Nenhuma subcategoria encontrada.'}</p>`;
-            } else {
-                const sortedSubcategories = getSortedArray(category.subcategories);
-                for (const [id, subcategory] of sortedSubcategories) {
-                    html += `
-                        <div class="relative bg-gray-800 rounded-lg shadow-lg card-hover-effect" data-id="${id}" data-cat-id="${categoryId}" data-sub-id="${id}" data-action="view-subcategory">
-                            <div class="p-6 flex items-center gap-4">
-                                ${isSortMode ? '<div class="drag-handle p-2 text-gray-500 cursor-move"><i class="fas fa-grip-vertical"></i></div>' : ''}
-                                <i class="${subcategory.icon} fa-2x text-orange-400"></i>
-                                <div>
-                                    <h3 class="text-lg font-bold text-white">${subcategory.name}</h3>
-                                    <p class="text-sm text-gray-400">${(subcategory.standards || []).length} norma(s)</p>
-                                </div>
-                            </div>
-                            ${!isSortMode ? renderAdminControls('subcategory', categoryId, id) : ''}
-                        </div>
-                    `;
-                }
-            }
-            html += '</div>';
-            contentArea.innerHTML = html;
-        }
-
-        function renderStandardsList(categoryId, subcategoryId, standardsList = null) {
-            const standards = standardsList !== null 
-                ? standardsList 
-                : (data[categoryId]?.subcategories[subcategoryId]?.standards || []);
-
-            let visibleStandards = isAdmin ? standards : standards.filter(s => !s.isHidden);
-
-            let html = '<div class="space-y-4">';
-            if (visibleStandards.length === 0) {
-                const message = standardsList !== null 
-                    ? 'Nenhum resultado encontrado.' 
-                    : `Nenhuma norma encontrada. ${isAdmin ? 'Adicione uma nova norma.' : ''}`;
-                html += `<div class="bg-gray-800 p-8 rounded-lg text-center text-gray-400">${message}</div>`;
-            } else {
-                 visibleStandards.forEach(standard => {
-                    let actionsHtml = '';
-                    if (standard.pdfUrl && standard.pdfUrl !== '#') {
-                        actionsHtml += `<a href="${standard.pdfUrl}" target="_blank" class="flex-shrink-0 bg-red-700 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors self-center flex items-center gap-2"><i class="fas fa-file-pdf"></i> Ver PDF</a>`;
-                    }
-                    if (standard.url && standard.url !== '#') {
-                        actionsHtml += `<a href="${standard.url}" target="_blank" class="ml-4 flex-shrink-0 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-500 transition-colors self-center"><i class="fas fa-external-link-alt"></i></a>`;
-                    }
-
-                    html += `
-                        <div class="relative bg-gray-800 p-5 rounded-lg shadow-lg border-l-4 ${standard.isHidden ? 'border-gray-500 opacity-60' : 'border-orange-500'}">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <div class="flex items-center gap-3 mb-2">
-                                        <span class="font-bold text-lg text-orange-400">${standard.number}</span>
-                                        <span class="text-xs font-semibold px-2 py-1 rounded-full ${getTypeColor(standard.type)}">${standard.type}</span>
-                                        ${standard.isHidden ? '<span class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-600 text-gray-200 flex items-center gap-1"><i class="fas fa-eye-slash"></i> Oculta</span>' : ''}
-                                    </div>
-                                    <h4 class="text-xl font-semibold text-white mb-1">${standard.title}</h4>
-                                    <p class="text-gray-300 mb-3">${standard.description}</p>
-                                </div>
-                                <div class="flex items-center self-center">${actionsHtml}</div>
-                            </div>
-                             ${renderAdminControls('standard', standard.categoryId || categoryId, standard.subcategoryId || subcategoryId, standard.id)}
-                        </div>
-                    `;
-                });
-            }
-            html += '</div>';
-            contentArea.innerHTML = html;
-        }
-
-        function renderAllStandardsList() {
-            currentView.level = 'all-standards';
-            const allStandards = flattenAllStandards();
-            renderStandardsList(null, null, allStandards);
-        }
-
-        function renderSearchResults(term, type) {
-            const allStandards = flattenAllStandards();
-            const filtered = allStandards.filter(std => {
-                const termMatch = term ? (
-                    std.number.toLowerCase().includes(term) ||
-                    std.title.toLowerCase().includes(term) ||
-                    std.description.toLowerCase().includes(term)
-                ) : true;
-                const typeMatch = type !== 'all' ? std.type === type : true;
-                const isVisible = isAdmin ? true : !std.isHidden;
-                return termMatch && typeMatch && isVisible;
-            });
-            currentView.level = 'search-results';
-            renderStandardsList(null, null, filtered);
-        }
-
-        function renderAdminControls(type, id1, id2, id3) {
-            if (!isAdmin || isSortMode) return '';
-            const positionClasses = "absolute top-2 right-2 flex gap-2";
-            let buttons = '';
-
-            if (type === 'standard') {
-                const standard = data[id1]?.subcategories[id2]?.standards.find(s => s.id === id3);
-                if(standard){
-                    const isHidden = standard.isHidden;
-                    const eyeIcon = isHidden ? 'fa-eye' : 'fa-eye-slash';
-                    const eyeTooltip = isHidden ? 'Tornar visível' : 'Ocultar norma';
-                    buttons += `<button title="${eyeTooltip}" class="bg-gray-600 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-500" data-action="toggle-hide" data-cat-id="${id1}" data-sub-id="${id2}" data-std-id="${id3}"><i class="fas ${eyeIcon}"></i></button>`;
-                }
-            }
-
-            buttons += `
-                <button title="Editar" class="bg-yellow-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-yellow-600" data-action="edit-${type}" data-id1="${id1}" data-id2="${id2}" data-id3="${id3}"><i class="fas fa-pencil-alt"></i></button>
-                <button title="Excluir" class="bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-700" data-action="delete-${type}" data-id1="${id1}" data-id2="${id2}" data-id3="${id3}"><i class="fas fa-trash-alt"></i></button>
-            `;
-            return `<div class="${positionClasses}">${buttons}</div>`;
-        }
-        
-        function flattenAllStandards() {
-            const all = [];
-             for (const catId in data) {
-                 for (const subId in data[catId].subcategories) {
-                    const standards = data[catId].subcategories[subId].standards || [];
-                    standards.forEach(std => all.push({ ...std, categoryId: catId, subcategoryId: subId }));
-                }
-            }
-            return all;
-        }
-        
-        function updateFilterOptions() {
-            const types = new Set(flattenAllStandards().map(s => s.type));
-            let options = '<option value="all">Todos os Tipos</option>';
-            types.forEach(type => options += `<option value="${type}">${type}</option>`);
-            filterSelect.innerHTML = options;
-        }
-
-        function getTypeColor(type) {
-            switch(type) {
-                case 'ABNT': return 'bg-blue-900 text-blue-300';
-                case 'NR': return 'bg-red-900 text-red-300';
-                case 'ISO': return 'bg-green-900 text-green-300';
-                default: return 'bg-gray-700 text-gray-300';
-            }
-        }
-        
-        function updateBreadcrumbs() {
-            let html = `<span class="cursor-pointer hover:text-orange-400 transition-colors" data-action="nav-home"><i class="fas fa-home mr-1"></i>Início</span>`;
-            if (currentView.level === 'subcategories' || currentView.level === 'standards') {
-                const category = data[currentView.categoryId];
-                if(category) {
-                     html += ` <i class="fas fa-chevron-right text-xs mx-2"></i> <span class="cursor-pointer hover:text-orange-400 transition-colors" data-action="nav-category" data-id="${currentView.categoryId}">${category.name}</span>`;
-                }
-            }
-            if (currentView.level === 'standards') {
-                const subcategory = data[currentView.categoryId]?.subcategories[currentView.subcategoryId];
-                 if(subcategory) {
-                    html += ` <i class="fas fa-chevron-right text-xs mx-2"></i> <span class="text-white">${subcategory.name}</span>`;
-                }
-            }
-            if(currentView.level === 'all-standards' || currentView.level === 'search-results') {
-                html += ` <i class="fas fa-chevron-right text-xs mx-2"></i> <span class="text-white">Lista Completa / Resultados</span>`;
-            }
-            breadcrumbs.innerHTML = html;
-        }
-        
-        function updateAdminButtonsVisibility() {
-            adminAddButtons.classList.toggle('hidden', !isAdmin);
-            if(isAdmin){
-                addCategoryBtn.classList.toggle('hidden', isSortMode || currentView.level !== 'categories');
-                const showSub = currentView.level === 'subcategories' && currentView.categoryId && !isSortMode;
-                addSubcategoryBtn.classList.toggle('hidden', !showSub);
-                const showStd = (currentView.level === 'standards' || currentView.level === 'subcategories') && !isSortMode;
-                addStandardBtn.classList.toggle('hidden', !showStd);
-                const showSort = (currentView.level === 'categories' || currentView.level === 'subcategories');
-                toggleSortModeBtn.classList.toggle('hidden', !showSort);
-                addAdminBtn.classList.toggle('hidden', isSortMode);
-            }
-        }
-
-        function generateUniqueId(prefix = 'id') {
-            return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        }
-        
-        function parseIconInput(input) {
-            if (!input) return '';
-            const trimmedInput = input.trim();
-            if (trimmedInput.startsWith('<i') && trimmedInput.endsWith('>')) {
-                const match = trimmedInput.match(/class="([^"]+)"/);
-                if (match && match[1]) { return match[1]; }
-            }
-            return trimmedInput;
-        }
-
-        contentArea.addEventListener('click', (e) => {
-            if (isSortMode) return;
-            const target = e.target.closest('[data-action]');
-            if (!target) return;
-            const action = target.dataset.action;
-            const id = target.dataset.id;
-            const catId = target.dataset.catId || target.dataset.id1;
-            const subId = target.dataset.subId || target.dataset.id2;
-            const stdId = target.dataset.stdId || target.dataset.id3;
-            console.log(`[ETAPA] Ação de conteúdo disparada: ${action}`, { catId, subId, stdId });
-            if (action.startsWith('view-') && isAdmin && (e.target.closest('[data-action^="edit"]') || e.target.closest('[data-action^="delete"]'))) { return; }
-            switch (action) {
-                case 'view-category': currentView = { level: 'subcategories', categoryId: id, subcategoryId: null }; break;
-                case 'view-subcategory': currentView = { level: 'standards', categoryId: catId, subcategoryId: subId }; break;
-                case 'edit-category': showCategoryForm(catId); break;
-                case 'delete-category': handleDelete('category', catId); break;
-                case 'edit-subcategory': showSubcategoryForm(catId, subId); break;
-                case 'delete-subcategory': handleDelete('subcategory', catId, subId); break;
-                case 'edit-standard': showStandardForm(catId, subId, stdId); break;
-                case 'delete-standard': handleDelete('standard', catId, subId, stdId); break;
-                case 'toggle-hide': handleToggleHide(catId, subId, stdId); break;
-            }
-            if (action.startsWith('view-')) render();
         });
-        
-        breadcrumbs.addEventListener('click', (e) => {
-            const target = e.target.closest('[data-action]');
-            if (!target) return;
-            const action = target.dataset.action;
-            const id = target.dataset.id;
-            console.log(`[ETAPA] Ação de navegação (breadcrumbs) disparada: ${action}`);
-            switch (action) {
-                case 'nav-home': currentView = { level: 'categories', categoryId: null, subcategoryId: null }; break;
-                case 'nav-category': currentView = { level: 'subcategories', categoryId: id, subcategoryId: null }; break;
+
+        uploadBtn.addEventListener('click', () => {
+            console.log("Botão 'Enviar Arquivo' clicado.");
+            if (!selectedFile) {
+                console.warn("Tentativa de upload sem arquivo selecionado.");
+                return;
             }
-            searchInput.value = '';
-            filterSelect.value = 'all';
-            render();
-        });
-        
-        filterMenuButton.addEventListener('click', (e) => { e.stopPropagation(); filterMenu.classList.toggle('hidden'); });
-        window.addEventListener('click', () => { if (!filterMenu.classList.contains('hidden')) { filterMenu.classList.add('hidden'); } });
-        listAllButton.addEventListener('click', () => { filterMenu.classList.add('hidden'); renderAllStandardsList(); });
-        searchInput.addEventListener('input', () => render());
-        filterSelect.addEventListener('change', () => {
-            filterIndicator.classList.toggle('hidden', filterSelect.value === 'all');
-            if (currentView.level === 'categories' || currentView.level === 'subcategories') { renderAllStandardsList(); }
-            render();
-        });
-        
-        addCategoryBtn.addEventListener('click', () => showCategoryForm());
-        addSubcategoryBtn.addEventListener('click', () => showSubcategoryForm(currentView.categoryId));
-        addStandardBtn.addEventListener('click', () => {
-            if (currentView.level === 'standards') { showStandardForm(currentView.categoryId, currentView.subcategoryId); } 
-            else if (currentView.level === 'subcategories') { showStandardForm(currentView.categoryId); }
-        });
-        
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            let bgColor;
-            switch(type) {
-                case 'success': bgColor = 'bg-green-500'; break;
-                case 'error': bgColor = 'bg-red-500'; break;
-                default: bgColor = 'bg-gray-700';
-            }
-            toast.className = `toast ${bgColor} text-white py-2 px-4 rounded-lg shadow-lg`;
-            toast.textContent = message;
-            container.appendChild(toast);
-            setTimeout(() => toast.classList.add('show'), 10);
-            setTimeout(() => {
-                toast.classList.remove('show');
-                toast.addEventListener('transitionend', () => toast.remove());
-            }, 3000);
-        }
 
-        function createModal(title, content, id, size = 'max-w-lg') {
-            console.log(`[ETAPA] Criando modal: ${title} (ID: ${id})`);
-            const modalContainer = document.getElementById('modal-container');
-            const modalWrapper = document.createElement('div');
-            modalWrapper.innerHTML = `
-                <div id="${id}" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-black bg-opacity-70 opacity-0">
-                    <div class="modal-content bg-gray-800 rounded-lg shadow-xl w-full ${size} m-auto transform scale-95 border border-gray-700">
-                        <div class="flex justify-between items-center p-4 border-b border-gray-700">
-                            <h2 class="text-xl font-bold text-white">${title}</h2>
-                            <button class="close-modal-btn text-gray-400 hover:text-white text-2xl">&times;</button>
-                        </div>
-                        <div class="p-6 max-h-[80vh] overflow-y-auto">${content}</div>
-                    </div>
-                </div>`;
-            modalContainer.appendChild(modalWrapper);
-            const modal = document.getElementById(id);
-            setTimeout(() => {
-                modal.classList.add('opacity-100');
-                modal.querySelector('.modal-content').classList.add('scale-100');
-            }, 10);
-            const closeModal = () => {
-                 console.log(`[ETAPA] Fechando modal: ${title}`);
-                 modal.classList.remove('opacity-100');
-                 modal.querySelector('.modal-content').classList.remove('scale-100');
-                 setTimeout(() => { if (modalWrapper.parentNode) { modalWrapper.parentNode.removeChild(modalWrapper); } }, 300);
-            };
-            modal.querySelector('.close-modal-btn').addEventListener('click', closeModal);
-            return { modal, closeModal };
-        }
-        
-        function showConfirmationModal(title, message, onConfirm) {
-             const content = `
-                <p class="mb-6">${message}</p>
-                <div class="flex justify-end gap-4">
-                    <button id="confirm-cancel" class="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-500">Cancelar</button>
-                    <button id="confirm-ok" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Confirmar Exclusão</button>
-                </div>`;
-            const { closeModal } = createModal(title, content, 'confirm-modal');
-            document.getElementById('confirm-ok').onclick = () => { onConfirm(); closeModal(); };
-            document.getElementById('confirm-cancel').onclick = closeModal;
-        }
+            console.log(`Iniciando upload de: ${selectedFile.name}`);
+            const storageRef = ref(storage, `pdfs/${selectedFile.name}`);
+            const uploadTask = uploadBytesResumable(storageRef, selectedFile);
 
-        function showCategoryForm(catId = null) {
-            const isEditing = catId !== null;
-            const category = isEditing ? data[catId] : {};
-            const title = isEditing ? 'Editar Categoria' : 'Nova Categoria';
-            const content = `<form id="category-form" class="space-y-4"><div><label for="cat-name" class="block mb-1">Nome da Categoria</label><input type="text" id="cat-name" value="${category.name || ''}" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required></div><div><label for="cat-icon" class="block mb-1">Ícone</label><input type="text" id="cat-icon" value="${category.icon || ''}" placeholder="Ex: fas fa-cogs" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required><a href="https://fontawesome.com/search?o=r&m=free" target="_blank" class="text-sm text-orange-400 hover:underline">Buscar Ícones no Font Awesome <i class="fas fa-external-link-alt"></i></a></div><button type="submit" class="w-full mt-4 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700">Salvar Categoria</button></form>`;
-            const { closeModal } = createModal(title, content, 'category-form-modal');
-            document.getElementById('category-form').addEventListener('submit', (e) => {
-                e.preventDefault();
-                const newData = structuredClone(data);
-                const newCatId = isEditing ? catId : `cat-${Date.now()}`;
-                const iconClass = parseIconInput(document.getElementById('cat-icon').value);
-                const order = isEditing ? category.order : Object.keys(newData).length;
-                newData[newCatId] = { name: document.getElementById('cat-name').value, icon: iconClass, order: order, subcategories: isEditing ? (category.subcategories || {}) : {} };
-                updateFirestore(newData);
-                closeModal();
-            });
-        }
-        
-        function showSubcategoryForm(catId, subId = null) {
-            const isEditing = subId !== null;
-            const subcategory = isEditing ? data[catId].subcategories[subId] : {};
-            const title = isEditing ? 'Editar Subcategoria' : 'Nova Subcategoria';
-            const content = `<form id="subcategory-form" class="space-y-4"><div><label class="block mb-1">Categoria Pai</label><p class="p-2 bg-gray-700 rounded">${data[catId].name}</p></div><div><label for="subcat-name" class="block mb-1">Nome da Subcategoria</label><input type="text" id="subcat-name" value="${subcategory.name || ''}" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required></div><div><label for="subcat-icon" class="block mb-1">Ícone</label><input type="text" id="subcat-icon" value="${subcategory.icon || ''}" placeholder="Ex: fas fa-plug" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required></div><button type="submit" class="w-full mt-4 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">Salvar Subcategoria</button></form>`;
-            const { closeModal } = createModal(title, content, 'subcategory-form-modal');
-            document.getElementById('subcategory-form').addEventListener('submit', (e) => {
-                e.preventDefault();
-                const newData = structuredClone(data);
-                const newSubId = isEditing ? subId : `subcat-${Date.now()}`;
-                const iconClass = parseIconInput(document.getElementById('subcat-icon').value);
-                const order = isEditing ? subcategory.order : Object.keys(newData[catId].subcategories || {}).length;
-                if (!newData[catId].subcategories) newData[catId].subcategories = {};
-                newData[catId].subcategories[newSubId] = { name: document.getElementById('subcat-name').value, icon: iconClass, order: order, standards: isEditing ? (subcategory.standards || []) : [] };
-                updateFirestore(newData);
-                closeModal();
-            });
-        }
+            uploadBtn.disabled = true;
+            selectFileBtn.disabled = true;
 
-        async function showStandardForm(catId = null, subId = null, stdId = null) {
-            const isEditing = stdId !== null;
-            const standard = isEditing ? data[catId].subcategories[subId].standards.find(s => s.id === stdId) : {};
-            const title = isEditing ? 'Editar Norma' : 'Nova Norma';
-            const categoryOptions = Object.entries(data).map(([id, cat]) => `<option value="${id}" ${id === catId ? 'selected' : ''}>${cat.name}</option>`).join('');
-            let subcategoryOptions = '';
-            if (catId) { subcategoryOptions = Object.entries(data[catId].subcategories || {}).map(([id, sub]) => `<option value="${id}" ${id === subId ? 'selected' : ''}>${sub.name}</option>`).join(''); }
-            
-            const fileInputHtml = `
-                <div>
-                    <label for="std-pdf-file" class="block mb-1">Arquivo PDF da Norma</label>
-                    <input type="file" id="std-pdf-file" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-100 file:text-orange-700 hover:file:bg-orange-200" accept="application/pdf">
-                    ${standard.pdfUrl && standard.pdfUrl !== '#' ? `<p class="text-xs text-gray-400 mt-1">Arquivo atual: <a href="${standard.pdfUrl}" target="_blank" class="text-orange-400 hover:underline">Ver PDF</a>. Envie um novo arquivo para substituir.</p>` : ''}
-                </div>
-            `;
-            
-            const content = `<form id="standard-form" class="space-y-4"><div><label for="std-category" class="block mb-1">Categoria</label><select id="std-category" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required>${categoryOptions}</select></div><div><label for="std-subcategory" class="block mb-1">Subcategoria</label><select id="std-subcategory" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required>${subcategoryOptions}</select></div><div><label for="std-type" class="block mb-1">Tipo</label><input type="text" id="std-type" list="type-list" value="${standard.type || ''}" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required><datalist id="type-list"><option value="ABNT"><option value="NR"><option value="ISO"></datalist></div><div><label for="std-number" class="block mb-1">Número</label><input type="text" id="std-number" value="${standard.number || ''}" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required></div><div><label for="std-title" class="block mb-1">Título</label><input type="text" id="std-title" value="${standard.title || ''}" class="w-full p-2 border rounded bg-gray-700 border-gray-600" required></div><div><label for="std-description" class="block mb-1">Descrição</label><textarea id="std-description" rows="3" class="w-full p-2 border rounded bg-gray-700 border-gray-600">${standard.description || ''}</textarea></div>${fileInputHtml}<div><label for="std-url" class="block mb-1">URL Externa (Opcional)</label><input type="url" id="std-url" value="${standard.url || ''}" class="w-full p-2 border rounded bg-gray-700 border-gray-600"></div><button type="submit" class="w-full mt-4 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"><i class="fas fa-save"></i><span id="save-btn-text">Salvar Norma</span></button></form>`;
-            
-            const { closeModal } = createModal(title, content, 'standard-form-modal');
-            const catSelect = document.getElementById('std-category');
-            const subcatSelect = document.getElementById('std-subcategory');
-            
-            catSelect.addEventListener('change', (e) => {
-                const selectedCatId = e.target.value;
-                const subs = data[selectedCatId]?.subcategories || {};
-                subcatSelect.innerHTML = Object.entries(subs).map(([id, sub]) => `<option value="${id}">${sub.name}</option>`).join('');
-            });
-            
-            document.getElementById('standard-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log("[ETAPA] Formulário de norma submetido.");
-
-                const categoryId = catSelect.value;
-                const subcategoryId = subcatSelect.value;
-                console.log(`[ETAPA] Categoria ID: ${categoryId}, Subcategoria ID: ${subcategoryId}`);
-
-                if (!categoryId || !subcategoryId) {
-                    showToast("Por favor, selecione uma categoria e uma subcategoria.", "error");
-                    console.error("[ERRO] Categoria ou Subcategoria não selecionada. Abortando.");
-                    return;
-                }
-
-                const submitButton = e.target.querySelector('button[type="submit"]');
-                const buttonText = document.getElementById('save-btn-text');
-
-                buttonText.textContent = "Salvando...";
-                submitButton.disabled = true;
-
-                const file = document.getElementById('std-pdf-file').files[0];
-                let pdfUrl = standard.pdfUrl || '';
-                let pdfPath = standard.pdfPath || '';
-
-                try {
-                    if (file) {
-                        console.log("[ETAPA] Arquivo detectado. Iniciando processo de upload.", file);
-                        buttonText.textContent = "Enviando PDF...";
-                        
-                        const filePath = `normas/${categoryId}/${subcategoryId}/${Date.now()}-${file.name}`;
-                        console.log(`[ETAPA] Caminho do arquivo no Storage: ${filePath}`);
-                        
-                        const storageRef = ref(storage, filePath);
-                        console.log("[ETAPA] Referência do Storage criada. Chamando uploadBytes...");
-                        
-                        const metadata = { contentType: 'application/pdf' };
-                        const snapshot = await uploadBytes(storageRef, file, metadata);
-                        console.log("[ETAPA] Upload concluído com sucesso!", snapshot);
-
-                        buttonText.textContent = "Obtendo URL...";
-                        pdfUrl = await getDownloadURL(snapshot.ref);
-                        pdfPath = filePath;
-                        console.log(`[ETAPA] URL de download obtida: ${pdfUrl}`);
-
-                        if (isEditing && standard.pdfPath && standard.pdfPath !== filePath) {
-                            console.log(`[ETAPA] Deletando arquivo antigo: ${standard.pdfPath}`);
-                            const oldFileRef = ref(storage, standard.pdfPath);
-                            await deleteObject(oldFileRef).catch(err => console.warn("[AVISO] Não foi possível deletar o arquivo antigo.", err));
-                        }
-                    } else {
-                        console.log("[ETAPA] Nenhum arquivo novo selecionado.");
-                    }
-
-                    buttonText.textContent = "Salvando dados no Firestore...";
-                    console.log("[ETAPA] Preparando para salvar dados no Firestore.");
-                    const newData = structuredClone(data);
-                    const selectedCatId = catSelect.value;
-                    const selectedSubId = subcatSelect.value;
-                    
-                    const newStandard = { 
-                        id: isEditing ? stdId : generateUniqueId('std'), 
-                        type: document.getElementById('std-type').value, 
-                        number: document.getElementById('std-number').value, 
-                        title: document.getElementById('std-title').value, 
-                        description: document.getElementById('std-description').value, 
-                        url: document.getElementById('std-url').value, 
-                        pdfUrl: pdfUrl,
-                        pdfPath: pdfPath,
-                        isHidden: isEditing ? standard.isHidden : false, 
-                    };
-                    console.log("[ETAPA] Objeto da nova norma criado:", newStandard);
-
-                    if(isEditing && (catId !== selectedCatId || subId !== selectedSubId)) {
-                        console.log("[ETAPA] Norma movida para outra categoria/subcategoria. Removendo da antiga.");
-                        const oldStandards = newData[catId]?.subcategories[subId]?.standards;
-                        if(oldStandards){ const index = oldStandards.findIndex(s => s.id === stdId); if (index > -1) oldStandards.splice(index, 1); }
-                    }
-                    
-                    if (newData[selectedCatId]?.subcategories[selectedSubId]) {
-                        if (!newData[selectedCatId].subcategories[selectedSubId].standards) { 
-                            newData[selectedCatId].subcategories[selectedSubId].standards = []; 
-                        }
-                        
-                        const standardsArray = newData[selectedCatId].subcategories[selectedSubId].standards;
-                        const existingIndex = standardsArray.findIndex(s => s.id === newStandard.id);
-                        if(existingIndex > -1) {
-                            console.log("[ETAPA] Atualizando norma existente.");
-                            standardsArray[existingIndex] = newStandard;
-                        } else {
-                            console.log("[ETAPA] Adicionando nova norma.");
-                            standardsArray.push(newStandard);
-                        }
-
-                        await updateFirestore(newData);
-                        showToast("Norma salva com sucesso!", "success");
-                        closeModal();
-                    } else { 
-                        showToast("Erro: Subcategoria selecionada não é válida.", "error"); 
-                        console.error("[ERRO] A subcategoria selecionada não foi encontrada nos dados.");
-                    }
-                } catch (error) {
-                    console.error("[ERRO] Ocorreu um erro CRÍTICO no processo de salvamento da norma.", error);
+            uploadTask.on('state_changed', 
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
+                    progressWrapper.classList.remove('hidden');
+                    progressBar.style.width = progress + '%';
+                    statusEl.textContent = `Enviando... ${Math.round(progress)}%`;
+                    statusEl.className = 'text-center text-sm font-medium text-indigo-600';
+                }, 
+                (error) => {
+                    console.error("ERRO NO UPLOAD:", error);
+                    console.error("Código do Erro:", error.code);
+                    console.error("Mensagem do Erro:", error.message);
+                    let errorMessage = 'Ocorreu um erro durante o upload.';
                     if (error.code === 'storage/unauthorized') {
-                         showToast("Erro de Permissão no Storage. Verifique as Regras de Segurança e a configuração de CORS.", "error");
-                    } else if (error.code === 'permission-denied') {
-                         showToast("Erro de Permissão no Firestore. Verifique as Regras de Segurança.", "error");
-                    } else {
-                        showToast("Ocorreu um erro ao salvar a norma.", "error");
+                        errorMessage = 'Erro de permissão: Verifique as regras de segurança do seu Storage.';
+                        console.error("DICA: As regras do Firebase Storage não permitem a escrita. Vá ao console do Firebase > Storage > Regras e ajuste as permissões.");
+                    } else if (error.code === 'storage/canceled') {
+                        errorMessage = 'Upload cancelado.';
                     }
-                } finally {
-                    console.log("[ETAPA] Bloco 'finally' executado. Reativando o botão.");
-                    buttonText.textContent = "Salvar Norma";
-                    submitButton.disabled = false;
+                    statusEl.textContent = errorMessage;
+                    statusEl.className = 'text-center text-sm font-medium text-red-500';
+                    
+                    uploadBtn.disabled = false;
+                    selectFileBtn.disabled = false;
+                    progressWrapper.classList.add('hidden');
+                }, 
+                () => {
+                    console.log("UPLOAD CONCLUÍDO COM SUCESSO.");
+                    getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
+                        console.log('Arquivo disponível em:', downloadURL);
+                        statusEl.textContent = 'Upload concluído com sucesso!';
+                        statusEl.className = 'text-center text-sm font-medium text-green-500';
+                        
+                        selectedFile = null;
+                        fileInput.value = '';
+                        fileNameEl.textContent = 'Nenhum arquivo selecionado.';
+                        setTimeout(() => {
+                           progressWrapper.classList.add('hidden');
+                           if (statusEl.textContent === 'Upload concluído com sucesso!') {
+                               statusEl.textContent = '';
+                           }
+                        }, 4000);
+
+                        console.log("Atualizando a lista de arquivos após o upload.");
+                        await listFiles();
+                    });
+                    selectFileBtn.disabled = false;
                 }
-            });
-        }
-        
-        async function handleDelete(type, id1, id2, id3) {
-            let title, message, onConfirm;
-            const newData = structuredClone(data);
-            
-            switch (type) {
-                case 'category':
-                    title = 'Excluir Categoria';
-                    message = `Tem certeza que deseja excluir a categoria "${data[id1].name}"? Todas as subcategorias e normas (incluindo TODOS os arquivos PDF) serão removidas permanentemente.`;
-                    onConfirm = async () => {
-                        console.log(`[ETAPA] Excluindo categoria: ${id1}`);
-                        
-                        await deleteFolderContents(`normas/${id1}`);
-                        
-                        delete newData[id1]; 
-                        await updateFirestore(newData);
-                        currentView = { level: 'categories', categoryId: null, subcategoryId: null }; 
-                        render();
-                        showToast('Categoria excluída com sucesso.', 'success');
-                    };
-                    break;
-                case 'subcategory':
-                    title = 'Excluir Subcategoria';
-                    message = `Tem certeza que deseja excluir a subcategoria "${data[id1].subcategories[id2].name}"? Todas as normas (incluindo TODOS os arquivos PDF) serão removidas permanentemente.`;
-                    onConfirm = async () => { 
-                        console.log(`[ETAPA] Excluindo subcategoria: ${id2} da categoria ${id1}`);
-                        
-                        await deleteFolderContents(`normas/${id1}/${id2}`);
+            );
+        });
 
-                        delete newData[id1].subcategories[id2]; 
-                        await updateFirestore(newData); 
-                        showToast('Subcategoria excluída com sucesso.', 'success');
-                    };
-                    break;
-                case 'standard':
-                    title = 'Excluir Norma';
-                    const standard = data[id1].subcategories[id2].standards.find(s => s.id === id3);
-                    message = `Tem certeza que deseja excluir a norma "${standard.number} - ${standard.title}"? O arquivo PDF associado também será excluído.`;
-                    onConfirm = async () => { 
-                        console.log(`[ETAPA] Excluindo norma: ${id3}`);
-                        const standards = newData[id1].subcategories[id2].standards; 
-                        const index = standards.findIndex(s => s.id === id3); 
-                        if(index > -1) {
-                            if (standard.pdfPath) {
-                                console.log(`[ETAPA] Excluindo arquivo do Storage: ${standard.pdfPath}`);
-                                const fileRef = ref(storage, standard.pdfPath);
-                                try {
-                                    await deleteObject(fileRef);
-                                    console.log("[ETAPA] Arquivo excluído do Storage com sucesso.");
-                                } catch (error) {
-                                    console.error("[ERRO] Falha ao excluir arquivo do Storage", error);
-                                    if (error.code === 'storage/object-not-found') {
-                                        showToast("Arquivo PDF não encontrado no Storage, mas a referência foi removida.", "info");
-                                    } else if (error.code === 'storage/unauthorized') {
-                                        showToast("Erro de permissão ao deletar o PDF do Storage.", "error");
-                                    }
-                                }
-                            }
-                            standards.splice(index, 1); 
-                        }
-                        await updateFirestore(newData);
-                        showToast('Norma excluída com sucesso.', 'success');
-                    };
-                    break;
-            }
-            showConfirmationModal(title, message, onConfirm);
-        }
+        cancelDeleteBtn.addEventListener('click', hideDeleteConfirmModal);
 
-        function handleToggleHide(catId, subId, stdId) {
-            console.log(`[ETAPA] Alternando visibilidade da norma: ${stdId}`);
-            const newData = structuredClone(data);
-            const standard = newData[catId].subcategories[subId].standards.find(s => s.id === stdId);
-            if (standard) { standard.isHidden = !standard.isHidden; updateFirestore(newData); }
-        }
-        
-        function handleSortToggle() {
-            isSortMode = !isSortMode;
-            console.log(`[ETAPA] Modo de ordenação alterado para: ${isSortMode}`);
-            if (!isSortMode) { 
-                if (sortableInstance) { 
-                    const newOrder = sortableInstance.toArray(); 
-                    saveNewOrder(newOrder); 
-                    sortableInstance.destroy(); 
-                    sortableInstance = null; 
-                } 
+        confirmDeleteBtn.addEventListener('click', () => {
+            console.log("Botão 'Sim, Excluir' clicado.");
+            if (fileToDelete) {
+                deleteFile(fileToDelete);
             }
-            render();
-        }
-        toggleSortModeBtn.addEventListener('click', handleSortToggle);
+            hideDeleteConfirmModal();
+        });
 
-        function setupSortable() {
-            const container = document.getElementById('sortable-container');
-            if (container) { 
-                console.log("[ETAPA] Inicializando SortableJS no container.");
-                sortableInstance = Sortable.create(container, { animation: 150, handle: '.drag-handle' }); 
-            }
-        }
-        
-        function saveNewOrder(newIdOrder) {
-            console.log("[ETAPA] Salvando nova ordem dos itens:", newIdOrder);
-            const newData = structuredClone(data);
-            if (currentView.level === 'categories') { 
-                newIdOrder.forEach((id, index) => { if (newData[id]) newData[id].order = index; }); 
-            } 
-            else if (currentView.level === 'subcategories' && currentView.categoryId) { 
-                const subcategories = newData[currentView.categoryId].subcategories; 
-                newIdOrder.forEach((id, index) => { if (subcategories[id]) subcategories[id].order = index; }); 
-            }
-            updateFirestore(newData).then(() => { showToast('Ordem salva com sucesso!', 'success'); });
-        }
-
-        window.addEventListener('DOMContentLoaded', initializeAppAndAuth);
+        window.onload = () => {
+            console.log("Página carregada. Chamando listFiles() pela primeira vez.");
+            listFiles();
+        };
 
     </script>
 </body>
